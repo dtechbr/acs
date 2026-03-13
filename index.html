@@ -29,7 +29,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, addDoc, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCjbjdltEPRsOl4n-5INvplYTzu2GjPSyE",
@@ -49,8 +49,10 @@
         let currentUser = null;
         let userData = null;
         let activeTab = 'infantil';
-        let viewMode = 'card'; // 'card' ou 'table'
+        let viewMode = 'card';
         let patients = [];
+        let searchTerm = "";
+        let addressFilter = "";
         let editingPatientId = null; 
         let managingVisitsId = null; 
         const MASTER_EMAIL = "gunardinogueira@gmail.com";
@@ -89,7 +91,6 @@
             } else { renderLogin(); }
         });
 
-        // --- DATA LOGIC ---
         function listenToData() {
             if (!currentUser) return;
             const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'patients');
@@ -144,14 +145,27 @@
         function renderDashboard() {
             document.getElementById('app').innerHTML = `
                 <header class="bg-white border-b sticky top-0 z-50">
-                    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-                        <div>
-                            <h1 class="font-bold text-emerald-800 text-lg">Metas ACS Vila Dutra</h1>
-                            <p class="text-[10px] text-gray-500 uppercase">${userData?.name} | EQ ${userData?.equipe} | MA ${userData?.microarea || 'Mestre'}</p>
+                    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="flex items-center gap-4 flex-1">
+                            <h1 class="font-bold text-emerald-800 text-lg whitespace-nowrap">Metas ACS Vila Dutra</h1>
+                            <div class="relative flex-1 max-w-md">
+                                <input type="text" 
+                                    placeholder="Pesquisar paciente..." 
+                                    oninput="window.handleSearch(this.value)"
+                                    class="w-full pl-10 pr-4 py-2 border rounded-full text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-sm"
+                                >
+                                <i data-lucide="search" class="w-4 h-4 absolute left-4 top-2.5 text-gray-400"></i>
+                            </div>
                         </div>
-                        <div class="flex gap-2">
-                            ${userData?.isMaster ? `<button onclick="window.renderAdmin()" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><i data-lucide="shield-check" class="w-5 h-5"></i></button>` : ''}
-                            <button onclick="window.handleLogout()" class="p-2 text-red-500 hover:bg-red-50 rounded-lg"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+                        <div class="flex items-center justify-between md:justify-end gap-4">
+                            <div class="text-right hidden sm:block">
+                                <p class="text-[10px] text-gray-500 uppercase font-bold tracking-tight leading-none mb-1">${userData?.name}</p>
+                                <p class="text-[9px] text-gray-400 uppercase">EQ ${userData?.equipe} | MA ${userData?.microarea || 'Mestre'}</p>
+                            </div>
+                            <div class="flex gap-1">
+                                ${userData?.isMaster ? `<button onclick="window.renderAdmin()" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><i data-lucide="shield-check" class="w-5 h-5"></i></button>` : ''}
+                                <button onclick="window.handleLogout()" class="p-2 text-red-500 hover:bg-red-50 rounded-lg"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+                            </div>
                         </div>
                     </div>
                     <nav class="flex overflow-x-auto px-4 border-t space-x-6">
@@ -164,11 +178,20 @@
                 </header>
 
                 <main class="max-w-7xl mx-auto p-4 pb-24">
-                    <div class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                        <h2 class="text-xl font-bold capitalize">${activeTab === 'infantil' ? 'Cuidado Infantil' : activeTab}</h2>
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+                        <h2 class="text-xl font-bold capitalize text-emerald-900">${activeTab === 'infantil' ? 'Cuidado Infantil' : activeTab}</h2>
                         
-                        <div class="flex items-center gap-3">
-                            <!-- Alternador de Vista -->
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <!-- Filtro por Logradouro -->
+                            <div class="relative min-w-[200px] flex-1 lg:flex-none">
+                                <input type="text" 
+                                    placeholder="Filtrar por logradouro..." 
+                                    oninput="window.handleAddressFilter(this.value)"
+                                    class="w-full pl-9 pr-4 py-2 border rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                                >
+                                <i data-lucide="map-pin" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400"></i>
+                            </div>
+
                             <div class="bg-gray-200 p-1 rounded-lg flex">
                                 <button onclick="window.setViewMode('card')" class="p-1.5 rounded-md ${viewMode === 'card' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'} transition">
                                     <i data-lucide="layout-grid" class="w-4 h-4"></i>
@@ -178,6 +201,10 @@
                                 </button>
                             </div>
 
+                            <button onclick="window.showBulkModal()" class="bg-white border border-emerald-600 text-emerald-600 px-3 py-2 rounded-lg flex items-center gap-2 text-xs font-bold hover:bg-emerald-50 transition">
+                                <i data-lucide="upload" class="w-4 h-4"></i> Importar
+                            </button>
+
                             <button onclick="window.showAddModal()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-sm hover:bg-emerald-700 transition">
                                 <i data-lucide="plus" class="w-4 h-4"></i> Novo
                             </button>
@@ -186,7 +213,7 @@
                     <div id="data-container"></div>
                 </main>
 
-                <!-- MODAIS (MESMA LÓGICA ANTERIOR) -->
+                <!-- MODAL CADASTRO INDIVIDUAL -->
                 <div id="modal" class="hidden fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
                         <div class="p-6 bg-gray-50 border-b flex justify-between items-center">
@@ -234,7 +261,7 @@
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-[10px] font-bold text-gray-400 uppercase">Endereço</label>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase">Endereço (Logradouro)</label>
                                 <input name="address" required class="w-full border-b py-2 outline-none focus:border-emerald-500">
                             </div>
                             <button type="submit" class="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-emerald-700 transition">Salvar Dados</button>
@@ -242,6 +269,40 @@
                     </div>
                 </div>
 
+                <!-- MODAL CADASTRO EM MASSA (CSV) -->
+                <div id="modal-bulk" class="hidden fixed inset-0 bg-black/60 z-[120] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div class="p-6 bg-emerald-50 border-b flex justify-between items-center">
+                            <h3 class="font-bold text-lg text-emerald-800">Importação em Massa</h3>
+                            <button onclick="window.hideBulkModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
+                        </div>
+                        <div class="p-6 space-y-6">
+                            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                <h4 class="text-xs font-bold text-blue-700 uppercase mb-2">Instruções:</h4>
+                                <ol class="text-[11px] text-blue-600 space-y-1 ml-4 list-decimal">
+                                    <li>Clique no botão abaixo para baixar o modelo CSV.</li>
+                                    <li>Abra o arquivo no Excel ou Bloco de Notas.</li>
+                                    <li>Preencha os dados (Cuidado com o formato de data: AAAA-MM-DD).</li>
+                                    <li>Salve como .CSV e envie aqui.</li>
+                                </ol>
+                            </div>
+                            
+                            <button onclick="window.downloadTemplate()" class="w-full border-2 border-dashed border-emerald-200 text-emerald-700 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 transition">
+                                <i data-lucide="download" class="w-4 h-4"></i> Baixar Modelo (${activeTab.toUpperCase()})
+                            </button>
+
+                            <div class="relative">
+                                <input type="file" id="csv-file" accept=".csv" class="hidden" onchange="window.handleCSVFile(this)">
+                                <label for="csv-file" class="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:bg-emerald-700 transition">
+                                    <i data-lucide="file-up" class="w-5 h-5"></i> Selecionar Arquivo CSV
+                                </label>
+                            </div>
+                            <p id="csv-status" class="text-center text-xs text-gray-500"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODAL VISITAS -->
                 <div id="modal-visits" class="hidden fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
                         <div class="p-6 border-b flex justify-between items-center">
@@ -264,18 +325,28 @@
         function renderList() {
             const container = document.getElementById('data-container');
             if (!container) return;
-            const filtered = patients.filter(p => p.category === activeTab);
             
+            // Filtro e Ordenação
+            let filtered = patients
+                .filter(p => p.category === activeTab)
+                .filter(p => {
+                    const matchName = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchAddress = p.address?.toLowerCase().includes(addressFilter.toLowerCase());
+                    return matchName && matchAddress;
+                })
+                .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
             if (filtered.length === 0) {
-                container.innerHTML = `<div class="py-20 text-center text-gray-400">Nenhum registro encontrado nesta categoria.</div>`;
+                container.innerHTML = `<div class="py-20 text-center text-gray-400 flex flex-col items-center gap-3">
+                    <i data-lucide="search-x" class="w-10 h-10"></i>
+                    <p>Nenhum paciente encontrado com esses filtros.</p>
+                </div>`;
+                refreshIcons();
                 return;
             }
 
-            if (viewMode === 'card') {
-                renderCards(container, filtered);
-            } else {
-                renderTable(container, filtered);
-            }
+            if (viewMode === 'card') renderCards(container, filtered);
+            else renderTable(container, filtered);
             refreshIcons();
         }
 
@@ -313,50 +384,11 @@
 
         function renderTable(container, data) {
             container.className = "table-container bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden";
-            
-            let tableHTML = `
-                <table class="w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th>Nome / MV</th>
-                            <th>Nasc.</th>
-                            <th class="hidden md:table-cell">Endereço</th>
-                            <th>EQ/MA</th>
-                            <th>Indicador</th>
-                            <th class="text-right">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
+            let tableHTML = `<table class="w-full border-collapse"><thead><tr><th>Nome / MV</th><th>Nasc.</th><th class="hidden md:table-cell">Endereço</th><th>EQ/MA</th><th>Indicador</th><th class="text-right">Ações</th></tr></thead><tbody>`;
             tableHTML += data.map(p => {
                 const meta = checkIndicators(p);
-                return `
-                    <tr>
-                        <td>
-                            <div class="font-bold text-gray-800 line-clamp-1">${p.name}</div>
-                            <div class="text-[10px] text-gray-400">MV: ${p.mv}</div>
-                        </td>
-                        <td class="whitespace-nowrap">${formatDateBR(p.dob)}</td>
-                        <td class="hidden md:table-cell max-w-xs"><div class="truncate text-gray-500">${p.address}</div></td>
-                        <td class="whitespace-nowrap">EQ ${p.equipe} / MA ${p.microarea}</td>
-                        <td>
-                            <div class="flex items-center gap-2">
-                                <div class="w-2 h-2 rounded-full ${meta.met ? 'bg-emerald-500' : 'bg-amber-400'}"></div>
-                                <span class="text-[10px] font-medium text-gray-600">${meta.met ? 'OK' : 'PEND.'}</span>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="flex justify-end gap-1">
-                                <button onclick="window.manageVisits('${p.id}')" class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded" title="Visitas"><i data-lucide="calendar" class="w-4 h-4"></i></button>
-                                <button onclick="window.editPatient('${p.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Editar"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                                <button onclick="window.deletePatient('${p.id}')" class="p-1.5 text-red-300 hover:bg-red-50 rounded" title="Excluir"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                return `<tr><td><div class="font-bold text-gray-800 line-clamp-1">${p.name}</div><div class="text-[10px] text-gray-400">MV: ${p.mv}</div></td><td class="whitespace-nowrap">${formatDateBR(p.dob)}</td><td class="hidden md:table-cell max-w-xs"><div class="truncate text-gray-500">${p.address}</div></td><td class="whitespace-nowrap">EQ ${p.equipe} / MA ${p.microarea}</td><td><div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full ${meta.met ? 'bg-emerald-500' : 'bg-amber-400'}"></div><span class="text-[10px] font-medium text-gray-600">${meta.met ? 'OK' : 'PEND.'}</span></div></td><td><div class="flex justify-end gap-1"><button onclick="window.manageVisits('${p.id}')" class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded" title="Visitas"><i data-lucide="calendar" class="w-4 h-4"></i></button><button onclick="window.editPatient('${p.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Editar"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="window.deletePatient('${p.id}')" class="p-1.5 text-red-300 hover:bg-red-50 rounded" title="Excluir"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></td></tr>`;
             }).join('');
-
             tableHTML += `</tbody></table>`;
             container.innerHTML = tableHTML;
         }
@@ -364,7 +396,6 @@
         function checkIndicators(p) {
             let met = false;
             let details = "";
-            
             if (activeTab === 'infantil') {
                 const dob = new Date(p.dob);
                 const v1 = p.visits?.[0] ? new Date(p.visits[0]) : null;
@@ -372,25 +403,19 @@
                 const metV1 = v1 && (Math.floor((v1 - dob) / 86400000) <= 30);
                 const metV2 = v2 && (Math.floor((v2 - dob) / 86400000) <= 180);
                 met = metV1 && metV2;
-                details = `
-                    <p class="text-[10px] ${metV1?'text-emerald-600':'text-red-400'} flex justify-between"><span>V1 (30d):</span> <span>${formatDateBR(p.visits?.[0])}</span></p>
-                    <p class="text-[10px] ${metV2?'text-emerald-600':'text-red-400'} flex justify-between"><span>V2 (6m):</span> <span>${formatDateBR(p.visits?.[1])}</span></p>`;
+                details = `<p class="text-[10px] ${metV1?'text-emerald-600':'text-red-400'} flex justify-between"><span>V1 (30d):</span> <span>${formatDateBR(p.visits?.[0])}</span></p><p class="text-[10px] ${metV2?'text-emerald-600':'text-red-400'} flex justify-between"><span>V2 (6m):</span> <span>${formatDateBR(p.visits?.[1])}</span></p>`;
             } else if (activeTab === 'gestante') {
                 const weeks = calculateWeeks(p.dum);
                 const vPrenatal = (p.visits || []).slice(0, 3);
                 const vPuerpera = p.visits?.length >= 4 ? p.visits[3] : null;
                 met = vPrenatal.length >= 3 && vPuerpera;
-                details = `
-                    <p class="text-[10px] font-bold text-blue-600">${weeks} semanas</p>
-                    <p class="text-[10px] text-gray-500">${p.visits?.length || 0} visitas (3 PN + 1 PU)</p>`;
+                details = `<p class="text-[10px] font-bold text-blue-600">${weeks} semanas</p><p class="text-[10px] text-gray-500">${p.visits?.length || 0} visitas (3 PN + 1 PU)</p>`;
             } else {
                 const v1 = p.visits?.[0] ? new Date(p.visits[0]) : null;
                 const v2 = p.visits?.[1] ? new Date(p.visits[1]) : null;
                 const intervalOk = v1 && v2 && (Math.abs(v2 - v1) / 86400000 >= 30);
                 met = intervalOk;
-                details = `
-                    <p class="text-[10px] text-gray-500">Última: ${formatDateBR(p.visits?.[p.visits.length-1])}</p>
-                    <p class="text-[10px] ${intervalOk?'text-emerald-600':'text-gray-400'}">${intervalOk?'✓ Intervalo OK':'⚠ Intervalo < 30 dias'}</p>`;
+                details = `<p class="text-[10px] text-gray-500">Última: ${formatDateBR(p.visits?.[p.visits.length-1])}</p><p class="text-[10px] ${intervalOk?'text-emerald-600':'text-gray-400'}">${intervalOk?'✓ Intervalo OK':'⚠ Intervalo < 30 dias'}</p>`;
             }
             return { met, details };
         }
@@ -399,126 +424,97 @@
             const container = document.getElementById('visits-list-container');
             const patient = patients.find(p => p.id === managingVisitsId);
             if (!patient || !container) return;
-
             if (!patient.visits || patient.visits.length === 0) {
                 container.innerHTML = `<div class="text-center text-gray-400 py-10 bg-gray-50 rounded-xl border-2 border-dashed">Nenhuma visita registrada ainda.</div>`;
                 return;
             }
-
-            container.innerHTML = patient.visits.map((v, index) => `
-                <div class="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm">
-                    <div class="flex items-center gap-3">
-                        <span class="bg-emerald-100 text-emerald-700 w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-bold shrink-0">${index + 1}</span>
-                        <input type="date" value="${v}" onchange="window.updateVisitDate('${patient.id}', ${index}, this.value)" class="text-sm font-medium border-none p-0 focus:ring-0 outline-none bg-transparent">
-                    </div>
-                    <button onclick="window.removeVisit('${patient.id}', ${index})" class="text-red-300 hover:text-red-500 p-1">
-                        <i data-lucide="x-circle" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            `).join('');
+            container.innerHTML = patient.visits.map((v, index) => `<div class="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm"><div class="flex items-center gap-3"><span class="bg-emerald-100 text-emerald-700 w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-bold shrink-0">${index + 1}</span><input type="date" value="${v}" onchange="window.updateVisitDate('${patient.id}', ${index}, this.value)" class="text-sm font-medium border-none p-0 focus:ring-0 outline-none bg-transparent"></div><button onclick="window.removeVisit('${patient.id}', ${index})" class="text-red-300 hover:text-red-500 p-1"><i data-lucide="x-circle" class="w-4 h-4"></i></button></div>`).join('');
             refreshIcons();
         }
 
         // --- HANDLERS ---
+        window.handleSearch = (val) => {
+            searchTerm = val;
+            renderList();
+        };
+
+        window.handleAddressFilter = (val) => {
+            addressFilter = val;
+            renderList();
+        };
 
         window.handleLogin = async () => {
             const email = document.getElementById('login-email').value;
             const pass = document.getElementById('login-password').value;
-            try { await signInWithEmailAndPassword(auth, email, pass); } catch (e) { alert("Erro ao entrar. Verifique credenciais."); }
+            try { await signInWithEmailAndPassword(auth, email, pass); } catch (e) { alert("Erro login."); }
         };
-
         window.handleLogout = () => signOut(auth).then(() => window.location.reload());
-
         window.setViewMode = (mode) => { viewMode = mode; renderList(); };
-
-        window.showAddModal = () => {
-            editingPatientId = null;
-            document.getElementById('modal-title').innerText = "Novo Cadastro";
-            document.getElementById('add-form').reset();
-            document.getElementById('modal').classList.remove('hidden');
-        };
-
-        window.hideAddModal = () => document.getElementById('modal').classList.add('hidden');
-
-        window.editPatient = (id) => {
-            editingPatientId = id;
-            const p = patients.find(item => item.id === id);
-            document.getElementById('modal-title').innerText = "Editar Cadastro";
-            const form = document.getElementById('add-form');
-            form.elements['name'].value = p.name;
-            form.elements['mv'].value = p.mv;
-            form.elements['dob'].value = p.dob;
-            form.elements['equipe'].value = p.equipe;
-            form.elements['microarea'].value = p.microarea;
-            form.elements['address'].value = p.address;
-            if (p.mother_name) form.elements['mother_name'].value = p.mother_name;
-            if (p.dum) form.elements['dum'].value = p.dum;
-            document.getElementById('modal').classList.remove('hidden');
-        };
-
-        async function handleSavePatient(e) {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-
-            try {
-                if (editingPatientId) {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'patients', editingPatientId);
-                    await updateDoc(docRef, data);
-                } else {
-                    const newPatient = { ...data, category: activeTab, createdBy: currentUser.uid, visits: [], createdAt: new Date().toISOString() };
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'patients'), newPatient);
-                }
-                window.hideAddModal();
-            } catch (err) { alert("Erro ao salvar dados."); }
-        }
-
-        window.manageVisits = (id) => {
-            managingVisitsId = id;
-            renderVisitsList();
-            document.getElementById('modal-visits').classList.remove('hidden');
-        };
-
-        window.hideVisitsModal = () => {
-            managingVisitsId = null;
-            document.getElementById('modal-visits').classList.add('hidden');
-        };
-
-        window.addNewVisitFromModal = async () => {
-            const date = new Date().toISOString().split('T')[0];
-            const p = patients.find(item => item.id === managingVisitsId);
-            const newVisits = [...(p.visits || []), date].sort();
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', managingVisitsId), { visits: newVisits });
-        };
-
-        window.updateVisitDate = async (patientId, index, newDate) => {
-            const p = patients.find(item => item.id === patientId);
-            const newVisits = [...p.visits];
-            newVisits[index] = newDate;
-            newVisits.sort();
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', patientId), { visits: newVisits });
-        };
-
-        window.removeVisit = async (patientId, index) => {
-            if (confirm("Remover esta visita do histórico?")) {
-                const p = patients.find(item => item.id === patientId);
-                const newVisits = p.visits.filter((_, i) => i !== index);
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', patientId), { visits: newVisits });
-            }
-        };
-
-        window.deletePatient = async (id) => {
-            if (confirm("Excluir este paciente permanentemente?")) {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', id));
-            }
-        };
-
         window.setTab = (tab) => { activeTab = tab; renderDashboard(); listenToData(); };
-        window.renderSignup = () => { 
-            // Implementação básica de signup
-            alert("Para solicitar cadastro, contate o administrador Gustavo."); 
-        };
+        window.showAddModal = () => { editingPatientId = null; document.getElementById('modal-title').innerText = "Novo Cadastro"; document.getElementById('add-form').reset(); document.getElementById('modal').classList.remove('hidden'); };
+        window.hideAddModal = () => document.getElementById('modal').classList.add('hidden');
+        window.editPatient = (id) => { editingPatientId = id; const p = patients.find(item => item.id === id); document.getElementById('modal-title').innerText = "Editar Cadastro"; const form = document.getElementById('add-form'); form.elements['name'].value = p.name; form.elements['mv'].value = p.mv; form.elements['dob'].value = p.dob; form.elements['equipe'].value = p.equipe; form.elements['microarea'].value = p.microarea; form.elements['address'].value = p.address; if (p.mother_name) form.elements['mother_name'].value = p.mother_name; if (p.dum) form.elements['dum'].value = p.dum; document.getElementById('modal').classList.remove('hidden'); };
+        async function handleSavePatient(e) { e.preventDefault(); const formData = new FormData(e.target); const data = Object.fromEntries(formData.entries()); try { if (editingPatientId) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', editingPatientId), data); } else { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'patients'), { ...data, category: activeTab, createdBy: currentUser.uid, visits: [], createdAt: new Date().toISOString() }); } window.hideAddModal(); } catch (err) { alert("Erro salvar."); } }
+        window.manageVisits = (id) => { managingVisitsId = id; renderVisitsList(); document.getElementById('modal-visits').classList.remove('hidden'); };
+        window.hideVisitsModal = () => { managingVisitsId = null; document.getElementById('modal-visits').classList.add('hidden'); };
+        window.addNewVisitFromModal = async () => { const date = new Date().toISOString().split('T')[0]; const p = patients.find(item => item.id === managingVisitsId); const newVisits = [...(p.visits || []), date].sort(); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', managingVisitsId), { visits: newVisits }); };
+        window.updateVisitDate = async (pid, idx, nDate) => { const p = patients.find(item => item.id === pid); const nV = [...p.visits]; nV[idx] = nDate; nV.sort(); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', pid), { visits: nV }); };
+        window.removeVisit = async (pid, idx) => { if (confirm("Remover?")) { const p = patients.find(item => item.id === pid); const nV = p.visits.filter((_, i) => i !== idx); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', pid), { visits: nV }); } };
+        window.deletePatient = async (id) => { if (confirm("Excluir?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', id)); };
 
+        // --- BULK OPERATIONS ---
+        window.showBulkModal = () => document.getElementById('modal-bulk').classList.remove('hidden');
+        window.hideBulkModal = () => document.getElementById('modal-bulk').classList.add('hidden');
+        window.downloadTemplate = () => {
+            let headers = ["Nome", "MV", "Data_Nascimento", "Equipe", "Microarea", "Endereco", "Telefone"];
+            if (activeTab === 'infantil') headers.push("Nome_Mae");
+            if (activeTab === 'gestante') headers.push("DUM");
+            const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + "EXEMPLO SILVA,123456,1990-01-20,71,1,RUA DAS FLORES 100,1499999999" + (activeTab === 'infantil' ? ",MARIA MAE" : activeTab === 'gestante' ? ",2024-10-01" : "");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `modelo_importacao_${activeTab}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+        window.handleCSVFile = (input) => {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            const status = document.getElementById('csv-status');
+            status.innerText = "Processando arquivo...";
+            reader.onload = async (e) => {
+                const text = e.target.result;
+                const lines = text.split("\n");
+                const headers = lines[0].split(",").map(h => h.trim());
+                const batch = writeBatch(db);
+                let count = 0;
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    const values = lines[i].split(",").map(v => v.trim());
+                    const obj = {};
+                    headers.forEach((h, idx) => {
+                        let key = h.toLowerCase().trim();
+                        if (key === "nome") key = "name";
+                        if (key === "data_nascimento" || key === "nascimento" || key === "nasc") key = "dob";
+                        if (key === "endereco") key = "address";
+                        if (key === "telefone") key = "phone";
+                        if (key === "nome_mae") key = "mother_name";
+                        obj[key] = values[idx];
+                    });
+                    const newPatientRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'patients'));
+                    batch.set(newPatientRef, { ...obj, category: activeTab, createdBy: currentUser.uid, visits: [], createdAt: new Date().toISOString() });
+                    count++;
+                }
+                try {
+                    await batch.commit();
+                    status.innerText = `Sucesso! ${count} registros importados.`;
+                    setTimeout(() => window.hideBulkModal(), 2000);
+                } catch (err) { status.innerText = "Erro ao importar: " + err.message; }
+            };
+            reader.readAsText(file);
+        };
     </script>
 </body>
 </html>
