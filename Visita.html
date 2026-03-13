@@ -1,0 +1,588 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Metas ACS - Vila Dutra</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Link atualizado e mais estável para o Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tab-active { border-bottom: 2px solid #059669; color: #059669; font-weight: 600; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #059669; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <div id="app">
+        <div class="flex items-center justify-center h-screen">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCjbjdltEPRsOl4n-5INvplYTzu2GjPSyE",
+            authDomain: "metas-acs.firebaseapp.com",
+            projectId: "metas-acs",
+            storageBucket: "metas-acs.firebasestorage.app",
+            messagingSenderId: "586389352039",
+            appId: "1:586389352039:web:4cf8e4bc2f9423e3752ec2",
+            measurementId: "G-9VB9B650ZE"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'metas-acs-v1';
+
+        let currentUser = null;
+        let userData = null;
+        let activeTab = 'infantil';
+        let patients = [];
+        const MASTER_EMAIL = "gunardinogueira@gmail.com";
+
+        // Helper para ícones (previne erro se lucide não carregar)
+        const refreshIcons = () => {
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        };
+
+        // --- AUTH FLOW ---
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                }
+            } catch(e) {
+                console.error("Auth Init Error", e);
+            }
+        };
+
+        onAuthStateChanged(auth, async (user) => {
+            currentUser = user;
+            if (user) {
+                if (user.email?.toLowerCase() === MASTER_EMAIL.toLowerCase()) {
+                    userData = { 
+                        name: "Coordenador Gustavo", 
+                        approved: true, 
+                        equipe: "Geral", 
+                        email: user.email,
+                        isMaster: true 
+                    };
+                    renderDashboard();
+                    listenToData();
+                    return;
+                }
+
+                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users_meta', user.uid);
+                try {
+                    const userDoc = await getDoc(userDocRef);
+                    if (userDoc.exists()) {
+                        userData = userDoc.data();
+                        if (userData.approved) {
+                            renderDashboard();
+                            listenToData();
+                        } else {
+                            renderPendingApproval();
+                        }
+                    } else {
+                        renderPendingApproval();
+                    }
+                } catch (err) {
+                    console.error("Erro ao buscar perfil:", err);
+                    renderPendingApproval();
+                }
+            } else {
+                renderLogin();
+            }
+        });
+
+        initAuth();
+
+        // --- UI RENDERERS ---
+
+        function renderLogin() {
+            const container = document.getElementById('app');
+            container.innerHTML = `
+                <div class="flex items-center justify-center min-h-screen p-4">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100">
+                        <div class="text-center mb-8">
+                            <h1 class="text-2xl font-bold text-emerald-700">Metas ACS Vila Dutra</h1>
+                            <p class="text-gray-500 text-sm">Acesso restrito a agentes comunitários</p>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">E-mail</label>
+                                <input id="login-email" type="email" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="seu@email.com">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Senha</label>
+                                <input id="login-password" type="password" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="••••••••">
+                            </div>
+                            <button id="btn-login" class="w-full bg-emerald-600 text-white p-3 rounded-xl font-semibold hover:bg-emerald-700 transition">Entrar</button>
+                            <div class="text-center pt-4">
+                                <button onclick="window.renderSignup()" class="text-emerald-600 text-sm font-medium hover:underline">Não tem conta? Solicite cadastro</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('btn-login').onclick = window.handleLogin;
+        }
+
+        window.renderSignup = () => {
+            const container = document.getElementById('app');
+            container.innerHTML = `
+                <div class="flex items-center justify-center min-h-screen p-4">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100">
+                        <div class="text-center mb-8">
+                            <h1 class="text-2xl font-bold text-emerald-700">Solicitar Cadastro</h1>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Equipa (Área)</label>
+                                    <select id="reg-equipe" class="w-full p-3 border rounded-xl outline-none">
+                                        <option value="71">71</option>
+                                        <option value="72">72</option>
+                                        <option value="76">76</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Microárea</label>
+                                    <select id="reg-micro" class="w-full p-3 border rounded-xl outline-none">
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                        <option value="6">6</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Nome Completo</label>
+                                <input id="reg-name" type="text" class="w-full p-3 border rounded-xl outline-none" placeholder="Seu nome">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">E-mail</label>
+                                <input id="reg-email" type="email" class="w-full p-3 border rounded-xl outline-none" placeholder="seu@email.com">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Senha</label>
+                                <input id="reg-password" type="password" class="w-full p-3 border rounded-xl outline-none" placeholder="Mínimo 6 caracteres">
+                            </div>
+                            <button id="btn-signup" class="w-full bg-emerald-600 text-white p-3 rounded-xl font-semibold hover:bg-emerald-700 transition">Enviar Solicitação</button>
+                            <div class="text-center pt-2">
+                                <button onclick="window.location.reload()" class="text-gray-500 text-sm hover:underline">Voltar ao login</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('btn-signup').onclick = window.handleSignup;
+        };
+
+        function renderPendingApproval() {
+            const container = document.getElementById('app');
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-screen p-4 text-center">
+                    <div class="bg-amber-100 text-amber-700 p-6 rounded-full mb-4">
+                        <i data-lucide="clock" class="w-12 h-12"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold mb-2">Aguardando Aprovação</h2>
+                    <p class="text-gray-600 max-w-sm mb-6">Seu cadastro foi enviado ao Coordenador Gustavo para aprovação.</p>
+                    <button onclick="window.handleLogout()" class="bg-gray-200 px-6 py-2 rounded-lg font-medium">Sair / Trocar Conta</button>
+                </div>
+            `;
+            refreshIcons();
+        }
+
+        function renderDashboard() {
+            const container = document.getElementById('app');
+            container.innerHTML = `
+                <header class="bg-white border-b sticky top-0 z-50">
+                    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                        <div>
+                            <h1 class="font-bold text-emerald-800 text-lg">Metas ACS Vila Dutra</h1>
+                            <p class="text-[10px] text-gray-500 uppercase tracking-wider">${userData?.name} | EQ ${userData?.equipe} | MA ${userData?.microarea || 'Mestre'}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            ${userData?.isMaster ? `
+                                <button onclick="window.renderAdmin()" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                                </button>
+                            ` : ''}
+                            <button onclick="window.handleLogout()" class="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                <i data-lucide="log-out" class="w-6 h-6"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="max-w-7xl mx-auto px-4 overflow-x-auto border-t">
+                        <nav class="flex space-x-6 whitespace-nowrap">
+                            <button onclick="window.setTab('infantil')" class="py-3 px-1 text-xs ${activeTab==='infantil'?'tab-active':'text-gray-500'}">Des. Infantil</button>
+                            <button onclick="window.setTab('gestante')" class="py-3 px-1 text-xs ${activeTab==='gestante'?'tab-active':'text-gray-500'}">Gestantes</button>
+                            <button onclick="window.setTab('diabetes')" class="py-3 px-1 text-xs ${activeTab==='diabetes'?'tab-active':'text-gray-500'}">Diabetes</button>
+                            <button onclick="window.setTab('hipertensao')" class="py-3 px-1 text-xs ${activeTab==='hipertensao'?'tab-active':'text-gray-500'}">Hipertensão</button>
+                            <button onclick="window.setTab('idoso')" class="py-3 px-1 text-xs ${activeTab==='idoso'?'tab-active':'text-gray-500'}">Idoso</button>
+                        </nav>
+                    </div>
+                </header>
+
+                <main class="max-w-7xl mx-auto p-4 pb-24">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold capitalize">${activeTab === 'infantil' ? 'Cuidado Infantil' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
+                        <button onclick="window.showAddModal()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Novo
+                        </button>
+                    </div>
+
+                    <div id="data-container" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        <div class="col-span-full py-20 text-center"><div class="loading-spinner mx-auto"></div></div>
+                    </div>
+                </main>
+
+                <div id="modal" class="hidden fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                            <h3 class="font-bold text-lg">Novo Cadastro</h3>
+                            <button onclick="window.hideAddModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
+                        </div>
+                        <form id="add-form" class="p-6 space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</label>
+                                <input name="name" required class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código MV</label>
+                                    <input name="mv" required class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Data Nasc.</label>
+                                    <input name="dob" type="date" required class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+                            
+                            ${activeTab === 'infantil' ? `
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Mãe</label>
+                                    <input name="mother_name" required class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500">
+                                </div>
+                            ` : ''}
+
+                            ${activeTab === 'gestante' ? `
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">DUM (Data Última Menstruação)</label>
+                                    <input id="form-dum" name="dum" type="date" required class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500">
+                                </div>
+                            ` : ''}
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Equipa (Área)</label>
+                                    <select name="equipe" class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500 bg-white">
+                                        <option value="71" ${userData?.equipe == '71' ? 'selected' : ''}>71</option>
+                                        <option value="72" ${userData?.equipe == '72' ? 'selected' : ''}>72</option>
+                                        <option value="76" ${userData?.equipe == '76' ? 'selected' : ''}>76</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Microárea</label>
+                                    <select name="microarea" class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500 bg-white">
+                                        <option value="1" ${userData?.microarea == '1' ? 'selected' : ''}>1</option>
+                                        <option value="2" ${userData?.microarea == '2' ? 'selected' : ''}>2</option>
+                                        <option value="3" ${userData?.microarea == '3' ? 'selected' : ''}>3</option>
+                                        <option value="4" ${userData?.microarea == '4' ? 'selected' : ''}>4</option>
+                                        <option value="5" ${userData?.microarea == '5' ? 'selected' : ''}>5</option>
+                                        <option value="6" ${userData?.microarea == '6' ? 'selected' : ''}>6</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone</label>
+                                    <input name="phone" class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Endereço</label>
+                                <input name="address" required class="w-full border p-3 rounded-xl outline-none focus:border-emerald-500">
+                            </div>
+                            
+                            <button type="submit" class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition active:scale-95">Salvar Paciente</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            refreshIcons();
+            document.getElementById('add-form')?.addEventListener('submit', handleSavePatient);
+        }
+
+        // --- DATA LOGIC ---
+
+        function listenToData() {
+            if (!currentUser) return;
+
+            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'patients');
+            
+            onSnapshot(colRef, (snapshot) => {
+                const allData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                if (userData?.isMaster) {
+                    patients = allData;
+                } else {
+                    patients = allData.filter(p => p.createdBy === currentUser.uid);
+                }
+                renderList();
+            }, (err) => {
+                console.error("Erro snapshot:", err);
+            });
+        }
+
+        function calculateWeeks(dumDate) {
+            if (!dumDate) return 0;
+            const start = new Date(dumDate);
+            const today = new Date();
+            const diffDays = Math.ceil((today - start) / (1000 * 60 * 60 * 24));
+            return Math.floor(diffDays / 7);
+        }
+
+        function renderList() {
+            const container = document.getElementById('data-container');
+            if (!container) return;
+
+            const filtered = patients.filter(p => p.category === activeTab);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="col-span-full py-20 text-center text-gray-400">Nenhum registro encontrado.</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(p => {
+                let statusInfo = "";
+                let indicatorMet = false;
+
+                if (activeTab === 'infantil') {
+                    const dob = new Date(p.dob);
+                    const v1 = p.visits?.[0] ? new Date(p.visits[0]) : null;
+                    const v2 = p.visits?.[1] ? new Date(p.visits[1]) : null;
+                    const metV1 = v1 && (Math.floor((v1 - dob) / (1000 * 60 * 60 * 24)) <= 30);
+                    const metV2 = v2 && (Math.floor((v2 - dob) / (1000 * 60 * 60 * 24)) <= 180);
+                    indicatorMet = metV1 && metV2;
+                    statusInfo = `
+                        <div class="text-[10px] space-y-1 mt-3 p-2 bg-gray-50 rounded-lg">
+                            <p class="${metV1 ? 'text-emerald-600' : 'text-red-500'} font-medium">V1 (até 30d): ${p.visits?.[0] || 'Aguardando'}</p>
+                            <p class="${metV2 ? 'text-emerald-600' : 'text-red-500'} font-medium">V2 (até 6m): ${p.visits?.[1] || 'Aguardando'}</p>
+                        </div>`;
+                } else if (activeTab === 'gestante') {
+                    const weeks = calculateWeeks(p.dum);
+                    const vPrenatal = (p.visits || []).slice(0, 3);
+                    const vPuerpera = p.visits?.length >= 4 ? p.visits[3] : null;
+                    indicatorMet = vPrenatal.length >= 3 && vPuerpera;
+                    statusInfo = `
+                        <div class="text-[10px] space-y-1 mt-3 p-2 bg-gray-50 rounded-lg">
+                            <p class="font-bold text-blue-600">Tempo: ${weeks} Semanas Gestacionais</p>
+                            <p class="${vPrenatal.length >= 3 ? 'text-emerald-600' : 'text-amber-600'}">Pré-natal: ${vPrenatal.length}/3 visitas</p>
+                            <p class="${vPuerpera ? 'text-emerald-600' : 'text-red-500'}">Puerpério: ${vPuerpera || 'Pendente'}</p>
+                        </div>`;
+                } else {
+                    const v1 = p.visits?.[0] ? new Date(p.visits[0]) : null;
+                    const v2 = p.visits?.[1] ? new Date(p.visits[1]) : null;
+                    let intervalOk = false;
+                    if (v1 && v2) {
+                        const diff = Math.abs(v2 - v1) / (1000 * 60 * 60 * 24);
+                        if (diff >= 30) intervalOk = true;
+                    }
+                    indicatorMet = intervalOk && v2;
+                    statusInfo = `
+                        <div class="text-[10px] space-y-1 mt-3 p-2 bg-gray-50 rounded-lg">
+                            <p>V1: ${p.visits?.[0] || '---'}</p>
+                            <p>V2: ${p.visits?.[1] || '---'}</p>
+                            <p class="${intervalOk ? 'text-emerald-600' : 'text-red-400'} font-bold">${intervalOk ? '✓ Intervalo Válido' : '⚠ Min. 30 dias de intervalo'}</p>
+                        </div>`;
+                }
+
+                return `
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-gray-800 leading-tight pr-2 line-clamp-1">${p.name}</h4>
+                            <span class="${indicatorMet ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'} text-[9px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0">
+                                ${indicatorMet ? 'OK' : 'Pendente'}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-gray-400 mb-1">MV: ${p.mv} | NASC: ${new Date(p.dob).toLocaleDateString('pt-BR')}</p>
+                        <p class="text-[11px] text-gray-500 line-clamp-1">EQ ${p.equipe || '--'} | MA ${p.microarea || '--'}</p>
+                        <p class="text-[11px] text-gray-500 line-clamp-1">${p.address}</p>
+                        ${statusInfo}
+                        <div class="mt-4 pt-4 border-t flex gap-2">
+                            <button onclick="window.addVisit('${p.id}')" class="flex-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold py-2 rounded-xl hover:bg-emerald-100 transition">
+                                REGISTRAR VISITA
+                            </button>
+                            <button onclick="window.deletePatient('${p.id}')" class="p-2 text-gray-300 hover:text-red-500 transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            refreshIcons();
+        }
+
+        // --- HANDLERS ---
+
+        window.handleLogin = async () => {
+            const btn = document.getElementById('btn-login');
+            btn.disabled = true;
+            btn.innerHTML = "Entrando...";
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-password').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+            } catch (e) {
+                alert("Erro ao entrar: Verifique seu e-mail e senha.");
+                btn.disabled = false;
+                btn.innerHTML = "Entrar";
+            }
+        };
+
+        window.handleSignup = async () => {
+            const btn = document.getElementById('btn-signup');
+            if (!btn) return;
+            btn.disabled = true;
+            const email = document.getElementById('reg-email').value;
+            const pass = document.getElementById('reg-password').value;
+            const name = document.getElementById('reg-name').value;
+            const equipe = document.getElementById('reg-equipe').value;
+            const micro = document.getElementById('reg-micro').value;
+
+            try {
+                const res = await createUserWithEmailAndPassword(auth, email, pass);
+                const isMaster = email.toLowerCase() === MASTER_EMAIL.toLowerCase();
+                
+                const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'users_meta', res.user.uid);
+                await setDoc(metaRef, {
+                    uid: res.user.uid,
+                    name,
+                    email,
+                    equipe,
+                    microarea: micro,
+                    approved: isMaster, 
+                    createdAt: new Date().toISOString()
+                });
+                
+                if (isMaster) {
+                    window.location.reload();
+                } else {
+                    renderPendingApproval();
+                }
+            } catch (e) {
+                alert("Erro ao cadastrar: " + e.message);
+                btn.disabled = false;
+            }
+        };
+
+        window.handleSavePatient = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            const newPatient = {
+                ...data,
+                category: activeTab,
+                createdBy: currentUser.uid,
+                visits: [],
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'patients');
+                await addDoc(colRef, newPatient);
+                window.hideAddModal();
+            } catch (err) {
+                alert("Erro ao salvar paciente.");
+            }
+        };
+
+        window.addVisit = async (id) => {
+            const date = prompt("Confirme a data da visita (AAAA-MM-DD):", new Date().toISOString().split('T')[0]);
+            if (!date) return;
+
+            const p = patients.find(item => item.id === id);
+            const newVisits = [...(p.visits || []), date].sort();
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'patients', id);
+                await updateDoc(docRef, { visits: newVisits });
+            } catch (err) {
+                alert("Erro ao atualizar visita.");
+            }
+        };
+
+        window.deletePatient = async (id) => {
+            if (confirm("Deseja realmente excluir este paciente?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', id));
+                } catch (e) {
+                    alert("Erro ao deletar.");
+                }
+            }
+        };
+
+        window.renderAdmin = async () => {
+            const container = document.getElementById('app');
+            container.innerHTML = `
+                <div class="p-6 max-w-2xl mx-auto">
+                    <h1 class="text-2xl font-bold mb-6 text-emerald-800">Gerenciar Equipa</h1>
+                    <div id="users-list" class="space-y-4">Carregando utilizadores...</div>
+                    <button onclick="window.location.reload()" class="mt-8 bg-gray-200 w-full py-3 rounded-xl font-bold">Voltar</button>
+                </div>`;
+            
+            const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users_meta');
+            const usersSnap = await getDocs(usersRef);
+            const users = usersSnap.docs.map(d => d.data());
+            
+            document.getElementById('users-list').innerHTML = users.map(u => `
+                <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center">
+                    <div>
+                        <p class="font-bold text-gray-800">${u.name}</p>
+                        <p class="text-xs text-gray-500">EQ ${u.equipe} | MA ${u.microarea} | ${u.email}</p>
+                    </div>
+                    <div>
+                        ${u.approved ? 
+                            '<span class="text-emerald-600 text-xs font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">ATIVO</span>' : 
+                            `<button onclick="window.approveUser('${u.uid}')" class="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold">APROVAR</button>`
+                        }
+                    </div>
+                </div>
+            `).join('') || '<p class="text-center text-gray-400">Nenhum utilizador cadastrado.</p>';
+        }
+
+        window.approveUser = async (uid) => {
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users_meta', uid);
+                await updateDoc(userRef, { approved: true });
+                window.renderAdmin();
+            } catch (e) {
+                alert("Erro ao aprovar.");
+            }
+        };
+
+        window.setTab = (tab) => { activeTab = tab; renderDashboard(); listenToData(); };
+        window.showAddModal = () => document.getElementById('modal')?.classList.remove('hidden');
+        window.hideAddModal = () => document.getElementById('modal')?.classList.add('hidden');
+        window.handleLogout = () => signOut(auth).then(() => window.location.reload());
+
+    </script>
+</body>
+</html>
