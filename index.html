@@ -1,520 +1,219 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Metas ACS - Vila Dutra</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .tab-active { border-bottom: 2px solid #059669; color: #059669; font-weight: 600; }
-        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #059669; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-        .table-container { overflow-x: auto; }
-        th { text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #6b7280; padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; }
-        td { padding: 0.75rem 1rem; border-bottom: 1px solid #f3f4f6; font-size: 0.875rem; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>USF Vila Dutra - Gestão Mobile</title>
+  <!-- Bootstrap 5 CDN para responsividade mobile -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome para ícones -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .navbar { background-color: #0056b3; }
+    .kpi-card { border-radius: 10px; color: white; padding: 15px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .bg-has { background-color: #dc3545; }
+    .bg-dia { background-color: #fd7e14; }
+    .bg-gestante { background-color: #e83e8c; }
+    .bg-geral { background-color: #17a2b8; }
+    .patient-card { border-left: 5px solid #0056b3; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .badge-condicao { font-size: 0.75rem; margin-right: 5px; margin-bottom: 5px; }
+    #loading { display: flex; justify-content: center; align-items: center; height: 50vh; }
+    .action-btn { font-size: 1.2rem; cursor: pointer; color: #6c757d; margin-left: 10px; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
+<body>
 
-    <div id="app">
-        <div class="flex items-center justify-center h-screen">
-            <div class="loading-spinner"></div>
+  <!-- Cabecalho -->
+  <nav class="navbar navbar-dark mb-3 sticky-top">
+    <div class="container-fluid">
+      <span class="navbar-brand mb-0 h1"><i class="fas fa-heartbeat"></i> USF Vila Dutra</span>
+      <div>
+        <button class="btn btn-outline-light btn-sm" onclick="toggleView()"><i class="fas fa-exchange-alt"></i> Alternar Visão</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    
+    <!-- Dashboard -->
+    <div class="row text-center mb-3">
+      <div class="col-6 col-md-3">
+        <div class="kpi-card bg-geral">
+          <h3 id="kpi-pessoas">0</h3><small>Pessoas</small>
         </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="kpi-card bg-geral">
+          <h3 id="kpi-familias">0</h3><small>Famílias</small>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="kpi-card bg-has">
+          <h4 id="kpi-has">0</h4><small>HAS</small>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="kpi-card bg-dia">
+          <h4 id="kpi-dia">0</h4><small>Diabéticos</small>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="kpi-card bg-gestante">
+          <h4 id="kpi-gestantes">0</h4><small>Gestantes</small>
+        </div>
+      </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, addDoc, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- Tela de Carregamento -->
+    <div id="loading">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Carregando...</span>
+      </div>
+    </div>
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCjbjdltEPRsOl4n-5INvplYTzu2GjPSyE",
-            authDomain: "metas-acs.firebaseapp.com",
-            projectId: "metas-acs",
-            storageBucket: "metas-acs.firebasestorage.app",
-            messagingSenderId: "586389352039",
-            appId: "1:586389352039:web:4cf8e4bc2f9423e3752ec2",
-            measurementId: "G-9VB9B650ZE"
-        };
+    <!-- Container Principal de Dados -->
+    <div id="dados-container" style="display: none;">
+      
+      <!-- Visao de Cartoes (Mobile) -->
+      <div id="view-cards"></div>
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'metas-acs-v1';
+      <!-- Visao de Planilha (Tabela) -->
+      <div id="view-table" class="table-responsive" style="display: none;">
+        <table class="table table-striped table-bordered bg-white">
+          <thead class="table-dark">
+            <tr>
+              <th>MV</th>
+              <th>Família</th>
+              <th>Nome</th>
+              <th>Endereço</th>
+              <th>Telefone</th>
+              <th>Condições</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
 
-        let currentUser = null;
-        let userData = null;
-        let activeTab = 'infantil';
-        let viewMode = 'card';
-        let patients = [];
-        let searchTerm = "";
-        let addressFilter = "";
-        let editingPatientId = null; 
-        let managingVisitsId = null; 
-        const MASTER_EMAIL = "gunardinogueira@gmail.com";
+    </div>
+  </div>
 
-        const refreshIcons = () => {
-            if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                lucide.createIcons();
-            }
-        };
+  <script>
+    let dadosGlobais = [];
+    let isCardView = true;
 
-        const formatDateBR = (dateStr) => {
-            if (!dateStr) return '---';
-            const [year, month, day] = dateStr.split('-');
-            return `${day}/${month}/${year}`;
-        };
+    // Inicia buscando os dados no Apps Script
+    window.onload = function() {
+      google.script.run.withSuccessHandler(processarDados).getDadosPlanilha();
+    };
 
-        // --- AUTH FLOW ---
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            if (user) {
-                if (user.email?.toLowerCase() === MASTER_EMAIL.toLowerCase()) {
-                    userData = { name: "Coordenador Gustavo", approved: true, equipe: "Geral", email: user.email, isMaster: true };
-                    renderDashboard();
-                    listenToData();
-                } else {
-                    const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users_meta', user.uid);
-                    try {
-                        const userDoc = await getDoc(userDocRef);
-                        if (userDoc.exists() && userDoc.data().approved) {
-                            userData = userDoc.data();
-                            renderDashboard();
-                            listenToData();
-                        } else { renderPendingApproval(); }
-                    } catch (err) { renderPendingApproval(); }
-                }
-            } else { renderLogin(); }
-        });
+    function processarDados(dados) {
+      dadosGlobais = dados;
+      atualizarDashboard();
+      renderizarCartoes();
+      renderizarTabela();
+      
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('dados-container').style.display = 'block';
+    }
 
-        function listenToData() {
-            if (!currentUser) return;
-            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'patients');
-            onSnapshot(colRef, (snapshot) => {
-                const allData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                patients = userData?.isMaster ? allData : allData.filter(p => p.createdBy === currentUser.uid);
-                renderList();
-                if (managingVisitsId) renderVisitsList();
-            });
-        }
+    function atualizarDashboard() {
+      document.getElementById('kpi-pessoas').innerText = dadosGlobais.length;
+      
+      // Conta famílias únicas
+      const familias = new Set(dadosGlobais.map(d => d.familia).filter(f => f !== ""));
+      document.getElementById('kpi-familias').innerText = familias.size;
 
-        function calculateWeeks(dumDate) {
-            if (!dumDate) return 0;
-            const start = new Date(dumDate);
-            const today = new Date();
-            const diffDays = Math.ceil((today - start) / (86400000));
-            return Math.floor(diffDays / 7);
-        }
+      document.getElementById('kpi-has').innerText = dadosGlobais.filter(d => d.has).length;
+      document.getElementById('kpi-dia').innerText = dadosGlobais.filter(d => d.dia1 || d.dia2).length;
+      document.getElementById('kpi-gestantes').innerText = dadosGlobais.filter(d => d.gestante).length;
+    }
 
-        // --- UI RENDERERS ---
+    function renderizarCartoes() {
+      const container = document.getElementById('view-cards');
+      container.innerHTML = '';
 
-        function renderLogin() {
-            document.getElementById('app').innerHTML = `
-                <div class="flex items-center justify-center min-h-screen p-4">
-                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-                        <div class="text-center mb-8">
-                            <h1 class="text-2xl font-bold text-emerald-700">Metas ACS Vila Dutra</h1>
-                        </div>
-                        <div class="space-y-4">
-                            <input id="login-email" type="email" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="E-mail">
-                            <input id="login-password" type="password" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Senha">
-                            <button onclick="window.handleLogin()" class="w-full bg-emerald-600 text-white p-3 rounded-xl font-bold hover:bg-emerald-700 transition">Entrar</button>
-                            <button onclick="window.renderSignup()" class="w-full text-emerald-600 text-sm font-medium hover:underline">Solicitar Cadastro</button>
-                        </div>
-                    </div>
-                </div>`;
-        }
+      dadosGlobais.forEach(paciente => {
+        let badges = '';
+        if(paciente.has) badges += `<span class="badge bg-danger badge-condicao">HAS</span>`;
+        if(paciente.dia1) badges += `<span class="badge bg-warning text-dark badge-condicao">DM1</span>`;
+        if(paciente.dia2) badges += `<span class="badge bg-warning text-dark badge-condicao">DM2</span>`;
+        if(paciente.gestante) badges += `<span class="badge bg-pink badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
+        if(paciente.acamado) badges += `<span class="badge bg-secondary badge-condicao">ACAMADO</span>`;
 
-        function renderPendingApproval() {
-            document.getElementById('app').innerHTML = `
-                <div class="flex flex-col items-center justify-center h-screen text-center p-4">
-                    <div class="bg-amber-100 text-amber-700 p-6 rounded-full mb-4">
-                        <i data-lucide="clock" class="w-12 h-12"></i>
-                    </div>
-                    <h2 class="text-2xl font-bold mb-2">Aguardando Aprovação</h2>
-                    <p class="text-gray-600 mb-6">Seu acesso está sendo revisado pelo coordenador Gustavo.</p>
-                    <button onclick="window.handleLogout()" class="bg-gray-200 px-6 py-2 rounded-lg font-medium">Sair</button>
-                </div>`;
-            refreshIcons();
-        }
-
-        function renderDashboard() {
-            document.getElementById('app').innerHTML = `
-                <header class="bg-white border-b sticky top-0 z-50">
-                    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div class="flex items-center gap-4 flex-1">
-                            <h1 class="font-bold text-emerald-800 text-lg whitespace-nowrap">Metas ACS Vila Dutra</h1>
-                            <div class="relative flex-1 max-w-md">
-                                <input type="text" 
-                                    placeholder="Pesquisar paciente..." 
-                                    oninput="window.handleSearch(this.value)"
-                                    class="w-full pl-10 pr-4 py-2 border rounded-full text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-sm"
-                                >
-                                <i data-lucide="search" class="w-4 h-4 absolute left-4 top-2.5 text-gray-400"></i>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between md:justify-end gap-4">
-                            <div class="text-right hidden sm:block">
-                                <p class="text-[10px] text-gray-500 uppercase font-bold tracking-tight leading-none mb-1">${userData?.name}</p>
-                                <p class="text-[9px] text-gray-400 uppercase">EQ ${userData?.equipe} | MA ${userData?.microarea || 'Mestre'}</p>
-                            </div>
-                            <div class="flex gap-1">
-                                ${userData?.isMaster ? `<button onclick="window.renderAdmin()" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><i data-lucide="shield-check" class="w-5 h-5"></i></button>` : ''}
-                                <button onclick="window.handleLogout()" class="p-2 text-red-500 hover:bg-red-50 rounded-lg"><i data-lucide="log-out" class="w-5 h-5"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                    <nav class="flex overflow-x-auto px-4 border-t space-x-6">
-                        ${['infantil', 'gestante', 'diabetes', 'hipertensao', 'idoso'].map(tab => `
-                            <button onclick="window.setTab('${tab}')" class="py-3 text-xs whitespace-nowrap ${activeTab===tab?'tab-active':'text-gray-500'}">
-                                ${tab === 'infantil' ? 'Cuidado Infantil' : tab.charAt(0).toUpperCase() + tab.slice(1).replace('Hipertensao', 'Hipertensão')}
-                            </button>
-                        `).join('')}
-                    </nav>
-                </header>
-
-                <main class="max-w-7xl mx-auto p-4 pb-24">
-                    <div class="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
-                        <h2 class="text-xl font-bold capitalize text-emerald-900">${activeTab === 'infantil' ? 'Cuidado Infantil' : activeTab}</h2>
-                        
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <!-- Filtro por Logradouro -->
-                            <div class="relative min-w-[200px] flex-1 lg:flex-none">
-                                <input type="text" 
-                                    placeholder="Filtrar por logradouro..." 
-                                    oninput="window.handleAddressFilter(this.value)"
-                                    class="w-full pl-9 pr-4 py-2 border rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                                >
-                                <i data-lucide="map-pin" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400"></i>
-                            </div>
-
-                            <div class="bg-gray-200 p-1 rounded-lg flex">
-                                <button onclick="window.setViewMode('card')" class="p-1.5 rounded-md ${viewMode === 'card' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'} transition">
-                                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
-                                </button>
-                                <button onclick="window.setViewMode('table')" class="p-1.5 rounded-md ${viewMode === 'table' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'} transition">
-                                    <i data-lucide="list" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-
-                            <button onclick="window.showBulkModal()" class="bg-white border border-emerald-600 text-emerald-600 px-3 py-2 rounded-lg flex items-center gap-2 text-xs font-bold hover:bg-emerald-50 transition">
-                                <i data-lucide="upload" class="w-4 h-4"></i> Importar
-                            </button>
-
-                            <button onclick="window.showAddModal()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-sm hover:bg-emerald-700 transition">
-                                <i data-lucide="plus" class="w-4 h-4"></i> Novo
-                            </button>
-                        </div>
-                    </div>
-                    <div id="data-container"></div>
-                </main>
-
-                <!-- MODAL CADASTRO INDIVIDUAL -->
-                <div id="modal" class="hidden fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-                        <div class="p-6 bg-gray-50 border-b flex justify-between items-center">
-                            <h3 id="modal-title" class="font-bold text-lg text-emerald-800">Novo Cadastro</h3>
-                            <button onclick="window.hideAddModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
-                        </div>
-                        <form id="add-form" class="p-6 space-y-4">
-                            <input type="hidden" name="id">
-                            <div>
-                                <label class="block text-[10px] font-bold text-gray-400 uppercase">Nome Completo</label>
-                                <input name="name" required class="w-full border-b py-2 outline-none focus:border-emerald-500">
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase">Código MV</label>
-                                    <input name="mv" required class="w-full border-b py-2 outline-none focus:border-emerald-500">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase">Data Nasc.</label>
-                                    <input name="dob" type="date" required class="w-full border-b py-2 outline-none focus:border-emerald-500">
-                                </div>
-                            </div>
-                            ${activeTab === 'infantil' ? `
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase">Nome da Mãe</label>
-                                    <input name="mother_name" required class="w-full border-b py-2 outline-none focus:border-emerald-500">
-                                </div>` : ''}
-                            ${activeTab === 'gestante' ? `
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase">DUM (Data Última Menstruação)</label>
-                                    <input name="dum" type="date" required class="w-full border-b py-2 outline-none focus:border-emerald-500">
-                                </div>` : ''}
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase">Equipa (Área)</label>
-                                    <select name="equipe" class="w-full border-b py-2 outline-none bg-transparent">
-                                        <option value="71">71</option><option value="72">72</option><option value="76">76</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase">Microárea</label>
-                                    <select name="microarea" class="w-full border-b py-2 outline-none bg-transparent">
-                                        ${[1,2,3,4,5,6].map(n => `<option value="${n}">${n}</option>`).join('')}
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-gray-400 uppercase">Endereço (Logradouro)</label>
-                                <input name="address" required class="w-full border-b py-2 outline-none focus:border-emerald-500">
-                            </div>
-                            <button type="submit" class="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-emerald-700 transition">Salvar Dados</button>
-                        </form>
-                    </div>
+        const card = `
+          <div class="card patient-card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="card-title mb-0">${paciente.nome}</h5>
+                <div>
+                  <i class="fas fa-edit action-btn text-primary" onclick="editar(${paciente.linha})"></i>
+                  <i class="fas fa-trash action-btn text-danger" onclick="deletar(${paciente.linha})"></i>
                 </div>
+              </div>
+              <h6 class="card-subtitle mb-2 text-muted">Família: ${paciente.familia} | Risco: ${paciente.risco}</h6>
+              <p class="card-text mb-1"><i class="fas fa-map-marker-alt"></i> ${paciente.endereco}, ${paciente.numero}</p>
+              <p class="card-text mb-2"><i class="fas fa-phone"></i> ${paciente.telefone}</p>
+              <div>${badges}</div>
+            </div>
+          </div>
+        `;
+        container.innerHTML += card;
+      });
+    }
 
-                <!-- MODAL CADASTRO EM MASSA (CSV) -->
-                <div id="modal-bulk" class="hidden fixed inset-0 bg-black/60 z-[120] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div class="p-6 bg-emerald-50 border-b flex justify-between items-center">
-                            <h3 class="font-bold text-lg text-emerald-800">Importação em Massa</h3>
-                            <button onclick="window.hideBulkModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
-                        </div>
-                        <div class="p-6 space-y-6">
-                            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                <h4 class="text-xs font-bold text-blue-700 uppercase mb-2">Instruções:</h4>
-                                <ol class="text-[11px] text-blue-600 space-y-1 ml-4 list-decimal">
-                                    <li>Clique no botão abaixo para baixar o modelo CSV.</li>
-                                    <li>Abra o arquivo no Excel ou Bloco de Notas.</li>
-                                    <li>Preencha os dados (Cuidado com o formato de data: AAAA-MM-DD).</li>
-                                    <li>Salve como .CSV e envie aqui.</li>
-                                </ol>
-                            </div>
-                            
-                            <button onclick="window.downloadTemplate()" class="w-full border-2 border-dashed border-emerald-200 text-emerald-700 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 transition">
-                                <i data-lucide="download" class="w-4 h-4"></i> Baixar Modelo (${activeTab.toUpperCase()})
-                            </button>
+    function renderizarTabela() {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
 
-                            <div class="relative">
-                                <input type="file" id="csv-file" accept=".csv" class="hidden" onchange="window.handleCSVFile(this)">
-                                <label for="csv-file" class="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:bg-emerald-700 transition">
-                                    <i data-lucide="file-up" class="w-5 h-5"></i> Selecionar Arquivo CSV
-                                </label>
-                            </div>
-                            <p id="csv-status" class="text-center text-xs text-gray-500"></p>
-                        </div>
-                    </div>
-                </div>
+      dadosGlobais.forEach(paciente => {
+        let condicoes = [];
+        if(paciente.has) condicoes.push("HAS");
+        if(paciente.dia1 || paciente.dia2) condicoes.push("DIA");
+        if(paciente.gestante) condicoes.push("GES");
 
-                <!-- MODAL VISITAS -->
-                <div id="modal-visits" class="hidden fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-                        <div class="p-6 border-b flex justify-between items-center">
-                            <h3 class="font-bold text-lg text-emerald-800">Histórico de Visitas</h3>
-                            <button onclick="window.hideVisitsModal()" class="text-gray-400"><i data-lucide="x"></i></button>
-                        </div>
-                        <div id="visits-list-container" class="p-6 max-h-[60vh] overflow-y-auto space-y-3"></div>
-                        <div class="p-6 bg-gray-50 border-t">
-                            <button onclick="window.addNewVisitFromModal()" class="w-full bg-emerald-100 text-emerald-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-200 transition">
-                                <i data-lucide="plus" class="w-4 h-4"></i> Registrar Nova Visita
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            refreshIcons();
-            document.getElementById('add-form')?.addEventListener('submit', handleSavePatient);
-        }
+        const tr = `
+          <tr>
+            <td>${paciente.mv}</td>
+            <td>${paciente.familia}</td>
+            <td>${paciente.nome}</td>
+            <td>${paciente.endereco}, ${paciente.numero}</td>
+            <td>${paciente.telefone}</td>
+            <td>${condicoes.join(', ')}</td>
+            <td>
+              <i class="fas fa-edit text-primary" style="cursor:pointer" onclick="editar(${paciente.linha})"></i>
+              <i class="fas fa-trash text-danger ms-2" style="cursor:pointer" onclick="deletar(${paciente.linha})"></i>
+            </td>
+          </tr>
+        `;
+        tbody.innerHTML += tr;
+      });
+    }
 
-        function renderList() {
-            const container = document.getElementById('data-container');
-            if (!container) return;
-            
-            // Filtro e Ordenação
-            let filtered = patients
-                .filter(p => p.category === activeTab)
-                .filter(p => {
-                    const matchName = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
-                    const matchAddress = p.address?.toLowerCase().includes(addressFilter.toLowerCase());
-                    return matchName && matchAddress;
-                })
-                .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    function toggleView() {
+      isCardView = !isCardView;
+      document.getElementById('view-cards').style.display = isCardView ? 'block' : 'none';
+      document.getElementById('view-table').style.display = isCardView ? 'none' : 'block';
+    }
 
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="py-20 text-center text-gray-400 flex flex-col items-center gap-3">
-                    <i data-lucide="search-x" class="w-10 h-10"></i>
-                    <p>Nenhum paciente encontrado com esses filtros.</p>
-                </div>`;
-                refreshIcons();
-                return;
-            }
+    function deletar(linha) {
+      if(confirm('Tem certeza que deseja remover este paciente? Esta ação altera a planilha real.')) {
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('dados-container').style.display = 'none';
+        
+        google.script.run.withSuccessHandler(() => {
+          alert('Removido com sucesso!');
+          google.script.run.withSuccessHandler(processarDados).getDadosPlanilha();
+        }).deletarRegistro(linha);
+      }
+    }
 
-            if (viewMode === 'card') renderCards(container, filtered);
-            else renderTable(container, filtered);
-            refreshIcons();
-        }
-
-        function renderCards(container, data) {
-            container.className = "grid gap-4 md:grid-cols-2 lg:grid-cols-3";
-            container.innerHTML = data.map(p => {
-                const meta = checkIndicators(p);
-                return `
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                        <div>
-                            <div class="flex justify-between items-start mb-2">
-                                <h4 class="font-bold text-gray-800 line-clamp-1 pr-2">${p.name}</h4>
-                                <span class="${meta.met ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-600'} text-[9px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0">
-                                    ${meta.met ? 'Meta OK' : 'Meta Pendente'}
-                                </span>
-                            </div>
-                            <p class="text-[11px] text-gray-400">MV: ${p.mv} | Nasc: ${formatDateBR(p.dob)}</p>
-                            <p class="text-[11px] text-gray-500">Área ${p.equipe} | MA ${p.microarea}</p>
-                            <div class="mt-3 bg-gray-50 p-2 rounded-lg">${meta.details}</div>
-                        </div>
-                        <div class="mt-4 pt-4 border-t flex items-center justify-between gap-2">
-                            <button onclick="window.manageVisits('${p.id}')" class="flex-1 bg-emerald-600 text-white text-[10px] font-bold py-2 rounded-lg shadow-sm hover:bg-emerald-700 transition">
-                                VISITAS
-                            </button>
-                            <button onclick="window.editPatient('${p.id}')" class="p-2 text-gray-400 hover:text-blue-500 transition">
-                                <i data-lucide="edit-3" class="w-4 h-4"></i>
-                            </button>
-                            <button onclick="window.deletePatient('${p.id}')" class="p-2 text-gray-300 hover:text-red-500 transition">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </button>
-                        </div>
-                    </div>`;
-            }).join('');
-        }
-
-        function renderTable(container, data) {
-            container.className = "table-container bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden";
-            let tableHTML = `<table class="w-full border-collapse"><thead><tr><th>Nome / MV</th><th>Nasc.</th><th class="hidden md:table-cell">Endereço</th><th>EQ/MA</th><th>Indicador</th><th class="text-right">Ações</th></tr></thead><tbody>`;
-            tableHTML += data.map(p => {
-                const meta = checkIndicators(p);
-                return `<tr><td><div class="font-bold text-gray-800 line-clamp-1">${p.name}</div><div class="text-[10px] text-gray-400">MV: ${p.mv}</div></td><td class="whitespace-nowrap">${formatDateBR(p.dob)}</td><td class="hidden md:table-cell max-w-xs"><div class="truncate text-gray-500">${p.address}</div></td><td class="whitespace-nowrap">EQ ${p.equipe} / MA ${p.microarea}</td><td><div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full ${meta.met ? 'bg-emerald-500' : 'bg-amber-400'}"></div><span class="text-[10px] font-medium text-gray-600">${meta.met ? 'OK' : 'PEND.'}</span></div></td><td><div class="flex justify-end gap-1"><button onclick="window.manageVisits('${p.id}')" class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded" title="Visitas"><i data-lucide="calendar" class="w-4 h-4"></i></button><button onclick="window.editPatient('${p.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Editar"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="window.deletePatient('${p.id}')" class="p-1.5 text-red-300 hover:bg-red-50 rounded" title="Excluir"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></td></tr>`;
-            }).join('');
-            tableHTML += `</tbody></table>`;
-            container.innerHTML = tableHTML;
-        }
-
-        function checkIndicators(p) {
-            let met = false;
-            let details = "";
-            if (activeTab === 'infantil') {
-                const dob = new Date(p.dob);
-                const v1 = p.visits?.[0] ? new Date(p.visits[0]) : null;
-                const v2 = p.visits?.[1] ? new Date(p.visits[1]) : null;
-                const metV1 = v1 && (Math.floor((v1 - dob) / 86400000) <= 30);
-                const metV2 = v2 && (Math.floor((v2 - dob) / 86400000) <= 180);
-                met = metV1 && metV2;
-                details = `<p class="text-[10px] ${metV1?'text-emerald-600':'text-red-400'} flex justify-between"><span>V1 (30d):</span> <span>${formatDateBR(p.visits?.[0])}</span></p><p class="text-[10px] ${metV2?'text-emerald-600':'text-red-400'} flex justify-between"><span>V2 (6m):</span> <span>${formatDateBR(p.visits?.[1])}</span></p>`;
-            } else if (activeTab === 'gestante') {
-                const weeks = calculateWeeks(p.dum);
-                const vPrenatal = (p.visits || []).slice(0, 3);
-                const vPuerpera = p.visits?.length >= 4 ? p.visits[3] : null;
-                met = vPrenatal.length >= 3 && vPuerpera;
-                details = `<p class="text-[10px] font-bold text-blue-600">${weeks} semanas</p><p class="text-[10px] text-gray-500">${p.visits?.length || 0} visitas (3 PN + 1 PU)</p>`;
-            } else {
-                const v1 = p.visits?.[0] ? new Date(p.visits[0]) : null;
-                const v2 = p.visits?.[1] ? new Date(p.visits[1]) : null;
-                const intervalOk = v1 && v2 && (Math.abs(v2 - v1) / 86400000 >= 30);
-                met = intervalOk;
-                details = `<p class="text-[10px] text-gray-500">Última: ${formatDateBR(p.visits?.[p.visits.length-1])}</p><p class="text-[10px] ${intervalOk?'text-emerald-600':'text-gray-400'}">${intervalOk?'✓ Intervalo OK':'⚠ Intervalo < 30 dias'}</p>`;
-            }
-            return { met, details };
-        }
-
-        function renderVisitsList() {
-            const container = document.getElementById('visits-list-container');
-            const patient = patients.find(p => p.id === managingVisitsId);
-            if (!patient || !container) return;
-            if (!patient.visits || patient.visits.length === 0) {
-                container.innerHTML = `<div class="text-center text-gray-400 py-10 bg-gray-50 rounded-xl border-2 border-dashed">Nenhuma visita registrada ainda.</div>`;
-                return;
-            }
-            container.innerHTML = patient.visits.map((v, index) => `<div class="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm"><div class="flex items-center gap-3"><span class="bg-emerald-100 text-emerald-700 w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-bold shrink-0">${index + 1}</span><input type="date" value="${v}" onchange="window.updateVisitDate('${patient.id}', ${index}, this.value)" class="text-sm font-medium border-none p-0 focus:ring-0 outline-none bg-transparent"></div><button onclick="window.removeVisit('${patient.id}', ${index})" class="text-red-300 hover:text-red-500 p-1"><i data-lucide="x-circle" class="w-4 h-4"></i></button></div>`).join('');
-            refreshIcons();
-        }
-
-        // --- HANDLERS ---
-        window.handleSearch = (val) => {
-            searchTerm = val;
-            renderList();
-        };
-
-        window.handleAddressFilter = (val) => {
-            addressFilter = val;
-            renderList();
-        };
-
-        window.handleLogin = async () => {
-            const email = document.getElementById('login-email').value;
-            const pass = document.getElementById('login-password').value;
-            try { await signInWithEmailAndPassword(auth, email, pass); } catch (e) { alert("Erro login."); }
-        };
-        window.handleLogout = () => signOut(auth).then(() => window.location.reload());
-        window.setViewMode = (mode) => { viewMode = mode; renderList(); };
-        window.setTab = (tab) => { activeTab = tab; renderDashboard(); listenToData(); };
-        window.showAddModal = () => { editingPatientId = null; document.getElementById('modal-title').innerText = "Novo Cadastro"; document.getElementById('add-form').reset(); document.getElementById('modal').classList.remove('hidden'); };
-        window.hideAddModal = () => document.getElementById('modal').classList.add('hidden');
-        window.editPatient = (id) => { editingPatientId = id; const p = patients.find(item => item.id === id); document.getElementById('modal-title').innerText = "Editar Cadastro"; const form = document.getElementById('add-form'); form.elements['name'].value = p.name; form.elements['mv'].value = p.mv; form.elements['dob'].value = p.dob; form.elements['equipe'].value = p.equipe; form.elements['microarea'].value = p.microarea; form.elements['address'].value = p.address; if (p.mother_name) form.elements['mother_name'].value = p.mother_name; if (p.dum) form.elements['dum'].value = p.dum; document.getElementById('modal').classList.remove('hidden'); };
-        async function handleSavePatient(e) { e.preventDefault(); const formData = new FormData(e.target); const data = Object.fromEntries(formData.entries()); try { if (editingPatientId) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', editingPatientId), data); } else { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'patients'), { ...data, category: activeTab, createdBy: currentUser.uid, visits: [], createdAt: new Date().toISOString() }); } window.hideAddModal(); } catch (err) { alert("Erro salvar."); } }
-        window.manageVisits = (id) => { managingVisitsId = id; renderVisitsList(); document.getElementById('modal-visits').classList.remove('hidden'); };
-        window.hideVisitsModal = () => { managingVisitsId = null; document.getElementById('modal-visits').classList.add('hidden'); };
-        window.addNewVisitFromModal = async () => { const date = new Date().toISOString().split('T')[0]; const p = patients.find(item => item.id === managingVisitsId); const newVisits = [...(p.visits || []), date].sort(); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', managingVisitsId), { visits: newVisits }); };
-        window.updateVisitDate = async (pid, idx, nDate) => { const p = patients.find(item => item.id === pid); const nV = [...p.visits]; nV[idx] = nDate; nV.sort(); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', pid), { visits: nV }); };
-        window.removeVisit = async (pid, idx) => { if (confirm("Remover?")) { const p = patients.find(item => item.id === pid); const nV = p.visits.filter((_, i) => i !== idx); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', pid), { visits: nV }); } };
-        window.deletePatient = async (id) => { if (confirm("Excluir?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'patients', id)); };
-
-        // --- BULK OPERATIONS ---
-        window.showBulkModal = () => document.getElementById('modal-bulk').classList.remove('hidden');
-        window.hideBulkModal = () => document.getElementById('modal-bulk').classList.add('hidden');
-        window.downloadTemplate = () => {
-            let headers = ["Nome", "MV", "Data_Nascimento", "Equipe", "Microarea", "Endereco", "Telefone"];
-            if (activeTab === 'infantil') headers.push("Nome_Mae");
-            if (activeTab === 'gestante') headers.push("DUM");
-            const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + "EXEMPLO SILVA,123456,1990-01-20,71,1,RUA DAS FLORES 100,1499999999" + (activeTab === 'infantil' ? ",MARIA MAE" : activeTab === 'gestante' ? ",2024-10-01" : "");
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `modelo_importacao_${activeTab}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-        window.handleCSVFile = (input) => {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            const status = document.getElementById('csv-status');
-            status.innerText = "Processando arquivo...";
-            reader.onload = async (e) => {
-                const text = e.target.result;
-                const lines = text.split("\n");
-                const headers = lines[0].split(",").map(h => h.trim());
-                const batch = writeBatch(db);
-                let count = 0;
-                for (let i = 1; i < lines.length; i++) {
-                    if (!lines[i].trim()) continue;
-                    const values = lines[i].split(",").map(v => v.trim());
-                    const obj = {};
-                    headers.forEach((h, idx) => {
-                        let key = h.toLowerCase().trim();
-                        if (key === "nome") key = "name";
-                        if (key === "data_nascimento" || key === "nascimento" || key === "nasc") key = "dob";
-                        if (key === "endereco") key = "address";
-                        if (key === "telefone") key = "phone";
-                        if (key === "nome_mae") key = "mother_name";
-                        obj[key] = values[idx];
-                    });
-                    const newPatientRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'patients'));
-                    batch.set(newPatientRef, { ...obj, category: activeTab, createdBy: currentUser.uid, visits: [], createdAt: new Date().toISOString() });
-                    count++;
-                }
-                try {
-                    await batch.commit();
-                    status.innerText = `Sucesso! ${count} registros importados.`;
-                    setTimeout(() => window.hideBulkModal(), 2000);
-                } catch (err) { status.innerText = "Erro ao importar: " + err.message; }
-            };
-            reader.readAsText(file);
-        };
-    </script>
+    function editar(linha) {
+      alert("A função de edição de formulário será aberta aqui. Linha da planilha: " + linha);
+      // Aqui pode ser implementado um modal do Bootstrap para enviar um objeto atualizado via POST
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
