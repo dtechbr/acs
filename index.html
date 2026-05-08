@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>USF Vila Dutra - Gestão Mobile</title>
-  <!-- Bootstrap 5 CDN para responsividade mobile -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- FontAwesome para ícones -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -24,7 +22,6 @@
 </head>
 <body>
 
-  <!-- Cabecalho -->
   <nav class="navbar navbar-dark mb-3 sticky-top">
     <div class="container-fluid">
       <span class="navbar-brand mb-0 h1"><i class="fas fa-heartbeat"></i> USF Vila Dutra</span>
@@ -35,8 +32,6 @@
   </nav>
 
   <div class="container-fluid">
-    
-    <!-- Dashboard -->
     <div class="row text-center mb-3">
       <div class="col-6 col-md-3">
         <div class="kpi-card bg-geral">
@@ -65,20 +60,14 @@
       </div>
     </div>
 
-    <!-- Tela de Carregamento -->
     <div id="loading">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Carregando...</span>
       </div>
     </div>
 
-    <!-- Container Principal de Dados -->
     <div id="dados-container" style="display: none;">
-      
-      <!-- Visao de Cartoes (Mobile) -->
       <div id="view-cards"></div>
-
-      <!-- Visao de Planilha (Tabela) -->
       <div id="view-table" class="table-responsive" style="display: none;">
         <table class="table table-striped table-bordered bg-white">
           <thead class="table-dark">
@@ -95,36 +84,43 @@
           <tbody id="table-body"></tbody>
         </table>
       </div>
-
     </div>
   </div>
 
   <script>
+    // COLOQUE O SEU LINK DE IMPLANTAÇÃO AQUI (TEM QUE TERMINAR COM /exec)
+    const API_URL = "https://script.google.com/macros/s/AKfycbyQNb63lB4XWzc6vTLGMX5WLXJUQGoBpZsdtl2UyZxUS-T5iEano3mA5pMAyqtgLjDTyQ/exec";
+
     let dadosGlobais = [];
     let isCardView = true;
 
-    // Inicia buscando os dados no Apps Script
     window.onload = function() {
-      google.script.run.withSuccessHandler(processarDados).getDadosPlanilha();
+      carregarDados();
     };
 
-    function processarDados(dados) {
-      dadosGlobais = dados;
-      atualizarDashboard();
-      renderizarCartoes();
-      renderizarTabela();
-      
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('dados-container').style.display = 'block';
+    function carregarDados() {
+      // Faz uma requisição GET para a API buscando os dados
+      fetch(API_URL + "?action=ler", { redirect: 'follow' })
+        .then(response => response.json())
+        .then(dados => {
+          dadosGlobais = dados;
+          atualizarDashboard();
+          renderizarCartoes();
+          renderizarTabela();
+          
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('dados-container').style.display = 'block';
+        })
+        .catch(error => {
+          console.error("Erro ao carregar os dados:", error);
+          alert("Erro de comunicação com o Google Sheets.");
+        });
     }
 
     function atualizarDashboard() {
       document.getElementById('kpi-pessoas').innerText = dadosGlobais.length;
-      
-      // Conta famílias únicas
       const familias = new Set(dadosGlobais.map(d => d.familia).filter(f => f !== ""));
       document.getElementById('kpi-familias').innerText = familias.size;
-
       document.getElementById('kpi-has').innerText = dadosGlobais.filter(d => d.has).length;
       document.getElementById('kpi-dia').innerText = dadosGlobais.filter(d => d.dia1 || d.dia2).length;
       document.getElementById('kpi-gestantes').innerText = dadosGlobais.filter(d => d.gestante).length;
@@ -139,7 +135,7 @@
         if(paciente.has) badges += `<span class="badge bg-danger badge-condicao">HAS</span>`;
         if(paciente.dia1) badges += `<span class="badge bg-warning text-dark badge-condicao">DM1</span>`;
         if(paciente.dia2) badges += `<span class="badge bg-warning text-dark badge-condicao">DM2</span>`;
-        if(paciente.gestante) badges += `<span class="badge bg-pink badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
+        if(paciente.gestante) badges += `<span class="badge badge-condicao" style="background-color:#e83e8c; color:white;">GESTANTE</span>`;
         if(paciente.acamado) badges += `<span class="badge bg-secondary badge-condicao">ACAMADO</span>`;
 
         const card = `
@@ -198,20 +194,27 @@
     }
 
     function deletar(linha) {
-      if(confirm('Tem certeza que deseja remover este paciente? Esta ação altera a planilha real.')) {
+      if(confirm('Tem certeza que deseja remover este paciente da planilha?')) {
         document.getElementById('loading').style.display = 'flex';
         document.getElementById('dados-container').style.display = 'none';
         
-        google.script.run.withSuccessHandler(() => {
-          alert('Removido com sucesso!');
-          google.script.run.withSuccessHandler(processarDados).getDadosPlanilha();
-        }).deletarRegistro(linha);
+        // Requisição para deletar a linha
+        fetch(API_URL + "?action=deletar&linha=" + linha, { redirect: 'follow' })
+          .then(response => response.json())
+          .then(resultado => {
+            alert('Removido com sucesso!');
+            carregarDados(); // Recarrega os dados atualizados
+          })
+          .catch(erro => {
+            alert("Erro ao deletar. Tente novamente.");
+            console.error(erro);
+            carregarDados();
+          });
       }
     }
 
     function editar(linha) {
-      alert("A função de edição de formulário será aberta aqui. Linha da planilha: " + linha);
-      // Aqui pode ser implementado um modal do Bootstrap para enviar um objeto atualizado via POST
+      alert("Para a edição, construiremos depois um formulário que enviará os dados atualizados para a linha: " + linha);
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
