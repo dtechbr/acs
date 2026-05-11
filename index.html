@@ -492,8 +492,10 @@ function desmarcarTodos() {
 <link rel="manifest" href="manifest.json">
 <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js')
-      .then(() => console.log("PWA Ativo na Vila Dutra!"));
+    // Aqui o nome deve ser IGUAL ao arquivo que você criou (sw.js)
+    navigator.serviceWorker.register('sw.js') 
+      .then(() => console.log("PWA da Vila Dutra registrado com sucesso!"))
+      .catch(err => console.log("Erro ao registrar PWA:", err));
   }
 </script>
   
