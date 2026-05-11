@@ -451,7 +451,27 @@
       document.getElementById('view-cards').style.display = isCardView ? 'block' : 'none';
       document.getElementById('view-table').style.display = isCardView ? 'none' : 'block';
     }
-
+    
+function desmarcarTodos() {
+      // Pede confirmação para o ACS não clicar sem querer e perder o trabalho do mês
+      if(!confirm("Tem certeza que deseja DESMARCAR TODOS os pacientes? Use isso apenas para iniciar um novo mês de visitas.")) return;
+      
+      // 1. Atualiza visualmente na mesma hora (zera tudo na tela e no painel)
+      dadosGlobais.forEach(p => p.acompanhado = false);
+      aplicarFiltros(); 
+      
+      // 2. Manda a ordem para o Google limpar a coluna inteira
+      fetch(`${API_URL}?action=limpar_acompanhamentos`, { redirect: 'follow' })
+        .then(response => response.json())
+        .then(res => {
+          if(res.status !== 'sucesso') {
+             alert("Erro no servidor ao limpar a planilha.");
+          }
+        })
+        .catch(err => {
+          alert("Erro de internet ao tentar desmarcar todos.");
+        });
+    }
 
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
