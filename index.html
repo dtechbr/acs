@@ -61,7 +61,7 @@
       
       <div class="tab-pane fade" id="lista" role="tabpanel">
         <div class="d-flex justify-content-end mb-2">
-           <button class="btn btn-outline-primary btn-sm" onclick="toggleView()"><i class="fas fa-list"></i> Visão Tabela</button>
+           <button class="btn btn-outline-primary btn-sm" onclick="toggleView()"><i class="fas fa-list"></i> Visão Tabela / Cards</button>
         </div>
         <div class="filter-bar" id="filtro-container">
           <div class="row">
@@ -95,7 +95,11 @@
         <div id="view-table" class="table-responsive" style="display: none;">
           <table class="table table-striped table-bordered bg-white" style="font-size: 0.85rem;">
             <thead class="table-dark">
-              <tr><th>Fam</th><th>Nome</th><th>Ações</th></tr>
+              <tr>
+                <th style="width: 15%;">Família</th>
+                <th>Paciente e Endereço</th>
+                <th style="width: 15%; text-align: center;">Ações</th>
+              </tr>
             </thead>
             <tbody id="table-body"></tbody>
           </table>
@@ -177,8 +181,8 @@
   </div>
 
   <script>
-    // A SUA URL CORRETA JÁ ESTÁ AQUI:
-    const API_URL = "https://script.google.com/macros/s/AKfycbyQNb63lB4XWzc6vTLGMX5WLXJUQGoBpZsdtl2UyZxUS-T5iEano3mA5pMAyqtgLjDTyQ/exec";
+    // 👇 COLE O SEU LINK AQUI NESTA LINHA 👇
+    const API_URL = "https://script.google.com/macros/s/SEU_LINK_AQUI/exec";
 
     let dadosGlobais = [];
     let dadosExibicao = [];
@@ -216,9 +220,8 @@
           document.getElementById('appTabsContent').style.display = 'block';
         })
         .catch(error => { 
-          // Mudei o erro para mostrar no console e te avisar se algo do tipo ocorrer novamente
           console.error("Detalhe do erro:", error);
-          alert("Aviso: " + error.message); 
+          alert("Aviso: Falha ao carregar os dados. Verifique a API_URL."); 
         });
     }
 
@@ -314,11 +317,18 @@
 
       dadosExibicao = res;
       renderizarCartoes();
+      renderizarTabela(); // AQUI ESTÁ A CORREÇÃO! Faltava essa linha para chamar a tabela.
     }
 
     function renderizarCartoes() {
       const container = document.getElementById('view-cards');
       container.innerHTML = '';
+      
+      if(dadosExibicao.length === 0) {
+        container.innerHTML = '<div class="alert alert-info mt-3 text-center">Nenhum paciente encontrado.</div>';
+        return;
+      }
+
       dadosExibicao.forEach(p => {
         let bg = '';
         if(p.has) bg += `<span class="badge bg-danger badge-condicao">HAS</span>`;
@@ -335,6 +345,32 @@
               <div class="mt-1">${bg}</div>
             </div>
           </div>
+        `;
+      });
+    }
+
+    // A FUNÇÃO DA TABELA QUE FALTAVA
+    function renderizarTabela() {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
+      
+      if(dadosExibicao.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center">Nenhum paciente encontrado.</td></tr>';
+        return;
+      }
+
+      dadosExibicao.forEach(p => {
+        tbody.innerHTML += `
+          <tr>
+            <td class="align-middle fw-bold text-center">${p.familia}</td>
+            <td>
+              <strong>${p.nome}</strong><br>
+              <small class="text-muted">${p.endereco}, ${p.numero}</small>
+            </td>
+            <td class="align-middle text-center">
+              <i class="fas fa-edit text-primary fs-5" style="cursor:pointer" onclick="alert('Edição em breve para o paciente: ${p.nome}')"></i>
+            </td>
+          </tr>
         `;
       });
     }
