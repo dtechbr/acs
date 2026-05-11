@@ -324,14 +324,15 @@
       renderizarTabela(); // <-- A CHAMADA DA TABELA AQUI
     }
 
-    function renderizarCartoes() {
+   function renderizarCartoes() {
       const container = document.getElementById('view-cards');
-      container.innerHTML = '';
       
       if(dadosExibicao.length === 0) {
         container.innerHTML = '<div class="alert alert-info mt-3 text-center">Nenhum paciente encontrado.</div>';
         return;
       }
+
+      let htmlFinal = ''; // Guarda tudo na memória primeiro
 
       dadosExibicao.forEach(p => {
         let bg = '';
@@ -340,24 +341,57 @@
         if(p.gestante) bg += `<span class="badge badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
         if(p.idadeCalc <= 2) bg += `<span class="badge bg-info badge-condicao">0 a 2 Anos</span>`;
 
-        // Lógica do Checkbox de Acompanhamento (Switch Bootstrap)
         let isChecked = p.acompanhado ? 'checked' : '';
 
-        container.innerHTML += `
+        htmlFinal += `
           <div class="card patient-card">
             <div class="card-body p-2">
               <h6 class="mb-1">${p.nome}</h6>
               <div class="text-muted" style="font-size:0.8rem;">Fam: ${p.familia} | Risco: ${p.risco} <br> ${p.endereco}, ${p.numero}</div>
               <div class="mt-1">${bg}</div>
               <hr class="my-2">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="chk-card-${p.linha}" ${isChecked} onchange="alterarAcompanhamento(${p.linha}, this.checked)">
-                <label class="form-check-label text-success fw-bold" style="font-size: 0.85rem;" for="chk-card-${p.linha}">Acompanhado (VD)</label>
+              <div class="form-check d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" id="chk-card-${p.linha}" style="transform: scale(1.4); margin-right: 12px; margin-top: 0; cursor: pointer;" ${isChecked} onchange="alterarAcompanhamento(${p.linha}, this.checked)">
+                <label class="form-check-label text-success fw-bold" style="font-size: 0.9rem; cursor: pointer;" for="chk-card-${p.linha}">Acompanhado (VD)</label>
               </div>
             </div>
           </div>
         `;
       });
+      
+      container.innerHTML = htmlFinal; // Desenha tudo na tela de uma só vez!
+    }
+
+    function renderizarTabela() {
+      const tbody = document.getElementById('table-body');
+      
+      if(dadosExibicao.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center">Nenhum paciente encontrado.</td></tr>';
+        return;
+      }
+
+      let htmlFinal = ''; // Guarda tudo na memória
+
+      dadosExibicao.forEach(p => {
+        let isChecked = p.acompanhado ? 'checked' : '';
+        
+        htmlFinal += `
+          <tr>
+            <td class="align-middle fw-bold text-center">${p.familia}</td>
+            <td class="align-middle">
+              <strong>${p.nome}</strong><br>
+              <small class="text-muted">${p.endereco}, ${p.numero}</small>
+            </td>
+            <td class="align-middle text-center">
+              <div class="d-flex justify-content-center">
+                <input class="form-check-input" type="checkbox" style="transform: scale(1.5); cursor: pointer;" ${isChecked} onchange="alterarAcompanhamento(${p.linha}, this.checked)">
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+      
+      tbody.innerHTML = htmlFinal; // Desenha tudo na tela de uma só vez!
     }
 
     // Função que dispara o salvamento na planilha e atualiza os gráficos
@@ -382,7 +416,7 @@
         });
     }
 
-   function renderizarTabela() {
+ function renderizarTabela() {
       const tbody = document.getElementById('table-body');
       tbody.innerHTML = '';
       
@@ -392,15 +426,19 @@
       }
 
       dadosExibicao.forEach(p => {
+        let isChecked = p.acompanhado ? 'checked' : '';
+        
         tbody.innerHTML += `
           <tr>
             <td class="align-middle fw-bold text-center">${p.familia}</td>
-            <td>
+            <td class="align-middle">
               <strong>${p.nome}</strong><br>
               <small class="text-muted">${p.endereco}, ${p.numero}</small>
             </td>
             <td class="align-middle text-center">
-              <i class="fas fa-edit text-primary fs-5" style="cursor:pointer" onclick="alert('Edição em breve para: ${p.nome}')"></i>
+              <div class="form-check form-switch d-inline-block">
+                <input class="form-check-input cursor-pointer" type="checkbox" ${isChecked} onchange="alterarAcompanhamento(${p.linha}, this.checked)">
+              </div>
             </td>
           </tr>
         `;
