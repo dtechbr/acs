@@ -325,42 +325,56 @@
       renderizarTabela(); // <-- A CHAMADA DA TABELA AQUI
     }
 
-   function renderizarCartoes() {
+  function renderizarCartoes() {
       const container = document.getElementById('view-cards');
-      
       if(dadosExibicao.length === 0) {
         container.innerHTML = '<div class="alert alert-info mt-3 text-center">Nenhum paciente encontrado.</div>';
         return;
       }
 
-      let htmlFinal = ''; // Guarda tudo na memória primeiro
-
+      let htmlFinal = '';
       dadosExibicao.forEach(p => {
-        let bg = '';
-        if(p.has) bg += `<span class="badge bg-danger badge-condicao">HAS</span>`;
-        if(p.dia1||p.dia2) bg += `<span class="badge bg-warning text-dark badge-condicao">DM</span>`;
-        if(p.gestante) bg += `<span class="badge badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
-        if(p.idadeCalc <= 2) bg += `<span class="badge bg-info badge-condicao">0 a 2 Anos</span>`;
+        // Lógica de Cores por Risco (Coluna C / p.risco)
+        let corBorda = '#0056b3'; // Padrão azul
+        const r = String(p.risco).trim();
+        if (r === '1') corBorda = '#28a745'; // Verde
+        else if (r === '2') corBorda = '#ffc107'; // Amarelo
+        else if (r === '3') corBorda = '#dc3545'; // Vermelho
+
+        let badges = '';
+        if(p.has) badges += `<span class="badge bg-danger badge-condicao">HAS</span>`;
+        if(p.dia1||p.dia2) badges += `<span class="badge bg-warning text-dark badge-condicao">DM</span>`;
+        if(p.gestante) badges += `<span class="badge badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
+        if(p.idadeCalc <= 2) badges += `<span class="badge bg-info badge-condicao">0 a 2 Anos</span>`;
 
         let isChecked = p.acompanhado ? 'checked' : '';
+        
+        // Botão WhatsApp (Coluna K / p.telefone)
+        let btnWhats = '';
+        if(p.telefone && p.telefone.length > 5) {
+          const numLimpo = String(p.telefone).replace(/\D/g,'');
+          btnWhats = `<a href="https://wa.me/55${numLimpo}" target="_blank" class="btn btn-sm btn-outline-success ms-auto"><i class="fab fa-whatsapp"></i> Zap</a>`;
+        }
 
         htmlFinal += `
-          <div class="card patient-card">
+          <div class="card patient-card" style="border-left-color: ${corBorda} !important;">
             <div class="card-body p-2">
-              <h6 class="mb-1">${p.nome}</h6>
+              <div class="d-flex align-items-center mb-1">
+                <h6 class="mb-0">${p.nome}</h6>
+                ${btnWhats}
+              </div>
               <div class="text-muted" style="font-size:0.8rem;">Fam: ${p.familia} | Risco: ${p.risco} <br> ${p.endereco}, ${p.numero}</div>
-              <div class="mt-1">${bg}</div>
+              <div class="mt-1">${badges}</div>
               <hr class="my-2">
               <div class="form-check d-flex align-items-center">
-                <input class="form-check-input" type="checkbox" id="chk-card-${p.linha}" style="transform: scale(1.4); margin-right: 12px; margin-top: 0; cursor: pointer;" ${isChecked} onchange="alterarAcompanhamento(${p.linha}, this.checked)">
-                <label class="form-check-label text-success fw-bold" style="font-size: 0.9rem; cursor: pointer;" for="chk-card-${p.linha}">Acompanhado (VD)</label>
+                <input class="form-check-input" type="checkbox" id="chk-card-${p.linha}" style="transform: scale(1.4); margin-right: 12px; cursor: pointer;" ${isChecked} onchange="alterarAcompanhamento(${p.linha}, this.checked)">
+                <label class="form-check-label text-success fw-bold" style="font-size: 0.9rem;" for="chk-card-${p.linha}">Acompanhado (VD)</label>
               </div>
             </div>
           </div>
         `;
       });
-      
-      container.innerHTML = htmlFinal; // Desenha tudo na tela de uma só vez!
+      container.innerHTML = htmlFinal;
     }
 
     function renderizarTabela() {
