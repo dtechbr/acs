@@ -182,7 +182,7 @@
 
   <script>
     // 👇 COLE O SEU LINK AQUI NESTA LINHA 👇
-    const API_URL = "https://script.google.com/macros/s/SEU_LINK_AQUI/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbyQNb63lB4XWzc6vTLGMX5WLXJUQGoBpZsdtl2UyZxUS-T5iEano3mA5pMAyqtgLjDTyQ/exec";
 
     let dadosGlobais = [];
     let dadosExibicao = [];
@@ -206,6 +206,10 @@
       fetch(API_URL + "?action=ler", { redirect: 'follow' })
         .then(response => response.json())
         .then(dados => {
+          
+          // IGNORA O CABEÇALHO (Linhas de 1 a 5 da planilha)
+          dados = dados.filter(d => d.linha >= 6);
+
           dadosGlobais = dados.map(d => {
             d.idadeCalc = calcularIdade(d.dn);
             d.isRisco3 = (String(d.risco).trim() === "3" || String(d.risco).toUpperCase().includes("RISCO 3"));
@@ -295,7 +299,7 @@
       }
     }
 
-    function aplicarFiltros() {
+   function aplicarFiltros() {
       const termo = document.getElementById('input-busca').value.toLowerCase();
       const ordem = document.getElementById('select-ordem').value;
       const filtro = document.getElementById('select-filtro').value;
@@ -317,7 +321,7 @@
 
       dadosExibicao = res;
       renderizarCartoes();
-      renderizarTabela(); // AQUI ESTÁ A CORREÇÃO! Faltava essa linha para chamar a tabela.
+      renderizarTabela(); // <-- A CHAMADA DA TABELA AQUI
     }
 
     function renderizarCartoes() {
@@ -335,7 +339,9 @@
         if(p.dia1||p.dia2) bg += `<span class="badge bg-warning text-dark badge-condicao">DM</span>`;
         if(p.gestante) bg += `<span class="badge badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
         if(p.idadeCalc <= 2) bg += `<span class="badge bg-info badge-condicao">0 a 2 Anos</span>`;
-        if(p.acompanhado) bg += `<span class="badge bg-success badge-condicao"><i class="fas fa-check"></i> VISITADO</span>`;
+
+        // Lógica do Checkbox de Acompanhamento (Switch Bootstrap)
+        let isChecked = p.acompanhado ? 'checked' : '';
 
         container.innerHTML += `
           <div class="card patient-card">
@@ -343,14 +349,40 @@
               <h6 class="mb-1">${p.nome}</h6>
               <div class="text-muted" style="font-size:0.8rem;">Fam: ${p.familia} | Risco: ${p.risco} <br> ${p.endereco}, ${p.numero}</div>
               <div class="mt-1">${bg}</div>
+              <hr class="my-2">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="chk-card-${p.linha}" ${isChecked} onchange="alterarAcompanhamento(${p.linha}, this.checked)">
+                <label class="form-check-label text-success fw-bold" style="font-size: 0.85rem;" for="chk-card-${p.linha}">Acompanhado (VD)</label>
+              </div>
             </div>
           </div>
         `;
       });
     }
 
-    // A FUNÇÃO DA TABELA QUE FALTAVA
-    function renderizarTabela() {
+    // Função que dispara o salvamento na planilha e atualiza os gráficos
+    function alterarAcompanhamento(linha, novoValor) {
+      // 1. Atualiza visualmente o paciente na memória (Para o gráfico mudar na hora)
+      let paciente = dadosGlobais.find(p => p.linha === linha);
+      if (paciente) {
+        paciente.acompanhado = novoValor;
+        calcularPainelCompleto(); // Atualiza as barrinhas do Dashboard instantaneamente
+      }
+
+      // 2. Manda a ordem de gravação para a planilha no fundo
+      fetch(`${API_URL}?action=atualizar_acompanhamento&linha=${linha}&valor=${novoValor}`, { redirect: 'follow' })
+        .then(response => response.json())
+        .then(res => {
+          if(res.status !== 'sucesso') {
+             alert("Erro no servidor ao salvar o Checkbox.");
+          }
+        })
+        .catch(err => {
+          alert("Erro de internet ao salvar o acompanhamento.");
+        });
+    }
+
+   function renderizarTabela() {
       const tbody = document.getElementById('table-body');
       tbody.innerHTML = '';
       
@@ -368,7 +400,7 @@
               <small class="text-muted">${p.endereco}, ${p.numero}</small>
             </td>
             <td class="align-middle text-center">
-              <i class="fas fa-edit text-primary fs-5" style="cursor:pointer" onclick="alert('Edição em breve para o paciente: ${p.nome}')"></i>
+              <i class="fas fa-edit text-primary fs-5" style="cursor:pointer" onclick="alert('Edição em breve para: ${p.nome}')"></i>
             </td>
           </tr>
         `;
@@ -380,6 +412,8 @@
       document.getElementById('view-cards').style.display = isCardView ? 'block' : 'none';
       document.getElementById('view-table').style.display = isCardView ? 'none' : 'block';
     }
+
+
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
