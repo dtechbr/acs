@@ -1,15 +1,18 @@
 {
-  "name": "USF Vila Dutra - ACS",
+  "id": "usf-gestao-v1",
+  "name": "USF Vila Dutra - Gestão",
   "short_name": "USF Gestão",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0056b3",
   "theme_color": "#0056b3",
+  "description": "Sistema de Gestão de Microárea ACS",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3063/3063205.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
