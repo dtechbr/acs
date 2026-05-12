@@ -124,6 +124,25 @@
 
 <body>
 
+<div id="tela-login" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8f9fa; z-index: 9999; display: flex; align-items: center; justify-content: center;">
+  <div class="card shadow-lg" style="width: 320px; padding: 20px;">
+    <div class="text-center mb-4">
+      <i class="fas fa-user-shield fa-3x text-primary"></i>
+      <h4 class="mt-2">Acesso Restrito</h4>
+      <p class="text-muted small">USF Vila Dutra - Microárea</p>
+    </div>
+    <div class="mb-3">
+      <label class="form-label small fw-bold">Usuário</label>
+      <input type="text" id="login-user" class="form-control">
+    </div>
+    <div class="mb-3">
+      <label class="form-label small fw-bold">Senha</label>
+      <input type="password" id="login-pass" class="form-control">
+    </div>
+    <button class="btn btn-primary w-100" onclick="autenticar()">Entrar</button>
+    <div id="login-erro" class="text-danger small mt-2 text-center" style="display: none;">Usuário ou senha incorretos!</div>
+  </div>
+</div>
   <nav class="navbar navbar-dark mb-3 sticky-top">
     <div class="container-fluid">
       <span class="navbar-brand mb-0 h1"><i class="fas fa-map-marked-alt"></i> Gestão de Microárea</span>
@@ -964,6 +983,40 @@ function salvarNovoPaciente() {
       }
     });
 }
+
+function autenticar() {
+  const user = document.getElementById('login-user').value;
+  const pass = document.getElementById('login-pass').value;
+  const msgErro = document.getElementById('login-erro');
+
+  // Chamada para a API do Google para verificar na aba Config
+  fetch(`${API_URL}?action=login&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`, { redirect: 'follow' })
+    .then(r => r.json())
+    .then(res => {
+      if (res.autorizado) {
+        // Esconde a tela de login
+        document.getElementById('tela-login').style.display = 'none';
+        // Agora sim, carrega os dados dos pacientes
+        carregarDados();
+        // Opcional: Salvar no localStorage para não pedir login toda hora
+        localStorage.setItem('logado_usf', 'true');
+      } else {
+        msgErro.style.display = 'block';
+      }
+    })
+    .catch(err => {
+      console.error("Erro na autenticação:", err);
+      alert("Erro ao conectar com o servidor.");
+    });
+}
+
+// Lógica para verificar se já estava logado ao abrir o app
+window.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('logado_usf') === 'true') {
+    document.getElementById('tela-login').style.display = 'none';
+    carregarDados();
+  }
+});
 
   </script>
 <button onclick="abrirModalCadastro()" style="position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; border-radius: 50%; background-color: #0056b3; color: white; border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 1000; font-size: 24px;">
