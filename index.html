@@ -124,6 +124,8 @@
 
 <body>
 
+  <input type="color" id="seletor-cor-card" style="display: none;" onchange="aplicarNovaCor(this.value)">
+
 <div id="tela-login" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8f9fa; z-index: 9999; display: flex; align-items: center; justify-content: center;">
   <div class="card shadow-lg" style="width: 320px; padding: 20px;">
     <div class="text-center mb-4">
@@ -143,12 +145,21 @@
     <div id="login-erro" class="text-danger small mt-2 text-center" style="display: none;">Usuário ou senha incorretos!</div>
   </div>
 </div>
-  <nav class="navbar navbar-dark mb-3 sticky-top">
-    <div class="container-fluid">
-      <span class="navbar-brand mb-0 h1"><i class="fas fa-map-marked-alt"></i> Gestão de Microárea</span>
+ <nav class="navbar navbar-dark bg-primary shadow-sm mb-3 sticky-top">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <span class="navbar-brand mb-0 h1" style="font-size: 1.1rem;">
+      <i class="fas fa-map-marked-alt"></i> USF Vila Dutra
+    </span>
+    
+    <div id="user-info-area" class="align-items-center text-white" style="display: none;">
+      <i class="fas fa-user-circle me-1"></i>
+      <span id="user-logged-name" class="small me-2 fw-bold"></span>
+      <button class="btn btn-sm btn-light text-primary py-0 fw-bold" onclick="logout()" style="font-size: 0.75rem;">
+        <i class="fas fa-sign-out-alt"></i> SAIR
+      </button>
     </div>
-  </nav>
-
+  </div>
+</nav>
 
   <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -668,65 +679,80 @@
     }
 
     function renderizarCartoes() {
-      const container = document.getElementById('view-cards');
-      if (dadosExibicao.length === 0) {
-        container.innerHTML = '<div class="alert alert-info mt-3 text-center">Nenhum paciente encontrado.</div>';
-        return;
-      }
+  const container = document.getElementById('view-cards');
+  
+  if (dadosExibicao.length === 0) {
+    container.innerHTML = '<div class="alert alert-info mt-3 text-center">Nenhum paciente encontrado.</div>';
+    return;
+  }
 
-      let htmlFinal = '';
-      dadosExibicao.forEach(p => {
-        // Cores por Risco (Coluna C)
-        let corBorda = '#0056b3';
-        const r = String(p.risco).trim();
-        if (r === '1' || r.includes('1')) corBorda = '#28a745';
-        else if (r === '2' || r.includes('2')) corBorda = '#ffc107';
-        else if (r === '3' || r.includes('3')) corBorda = '#dc3545';
+  let htmlFinal = '';
+  
+  dadosExibicao.forEach(p => {
+    // 1. Lógica de Cores Laterais por Risco (Coluna C)
+    let corBorda = '#0056b3'; // Azul padrão
+    const r = String(p.risco).trim();
+    if (r === '1' || r.includes('1')) corBorda = '#28a745';      // Verde
+    else if (r === '2' || r.includes('2')) corBorda = '#ffc107'; // Amarelo
+    else if (r === '3' || r.includes('3')) corBorda = '#dc3545'; // Vermelho
 
-        let badges = '';
-        if (p.has) badges += `<span class="badge bg-danger badge-condicao">HAS</span>`;
-        if (p.dia1 || p.dia2) badges += `<span class="badge bg-warning text-dark badge-condicao">DM</span>`;
-        if (p.gestante) badges += `<span class="badge badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
-        if (p.idadeCalc <= 2) badges += `<span class="badge bg-info badge-condicao">0 a 2 Anos</span>`;
+    // 2. Montagem das Badges de Condição
+    let badges = '';
+    if (p.has) badges += `<span class="badge bg-danger badge-condicao">HAS</span>`;
+    if (p.dia1 || p.dia2) badges += `<span class="badge bg-warning text-dark badge-condicao">DM</span>`;
+    if (p.gestante) badges += `<span class="badge badge-condicao" style="background-color:#e83e8c;">GESTANTE</span>`;
+    if (p.idadeCalc <= 2) badges += `<span class="badge bg-info badge-condicao">0-2 ANOS</span>`;
 
-        // Lógica para a Observação (Coluna A)
-        // Se existir observação, cria um pequeno bloco visual
-        let blocoObs = '';
-        if (p.obs && p.obs.trim() !== "") {
-          blocoObs = `
-        <div class="mt-2 p-2" style="background-color: #fff9c4; border-left: 3px solid #fbc02d; font-size: 0.85rem; border-radius: 4px;">
+    // 3. Bloco de Observação (Coluna A) - Estilo Post-it
+    let blocoObs = '';
+    if (p.obs && String(p.obs).trim() !== "") {
+      blocoObs = `
+        <div class="mt-2 p-2" style="background-color: #fff9c4; border-left: 3px solid #fbc02d; font-size: 0.85rem; border-radius: 4px; color: #333;">
           <i class="fas fa-sticky-note text-warning"></i> <strong>Obs:</strong> ${p.obs}
         </div>
       `;
-        }
+    }
 
-        let isChecked = p.acompanhado ? 'checked' : '';
+    // 4. Botão do WhatsApp
+    let btnWhats = '';
+    if (p.telefone && String(p.telefone).length > 5) {
+      const numLimpo = String(p.telefone).replace(/\D/g, '');
+      btnWhats = `
+        <a href="https://wa.me/55${numLimpo}" target="_blank" class="btn btn-sm btn-outline-success ms-1">
+          <i class="fab fa-whatsapp"></i> Zap
+        </a>`;
+    }
 
-        let btnWhats = '';
-        if (p.telefone && p.telefone.length > 5) {
-          const numLimpo = String(p.telefone).replace(/\D/g, '');
-          btnWhats = `<a href="https://wa.me/55${numLimpo}" target="_blank" class="btn btn-sm btn-outline-success ms-1"><i class="fab fa-whatsapp"></i> Zap</a>`;
-        }
+    // 5. Estado do Checkbox
+    let isChecked = p.acompanhado ? 'checked' : '';
 
-        htmlFinal += `
-      <div class="card patient-card" style="border-left-color: ${corBorda} !important;">
+    // 6. MONTAGEM DO HTML DO CARD
+    // Note o 'ondblclick' para a nova função de trocar cor
+    htmlFinal += `
+      <div class="card patient-card" 
+           id="card-paciente-${p.linha}"
+           style="border-left-color: ${corBorda} !important;"
+           ondblclick="abrirSeletorCor(${p.linha})">
+        
         <div class="card-body p-2">
           <div class="d-flex align-items-center mb-1">
-            <h6 class="mb-0 text-truncate" style="max-width: 50%;">${p.nome}</h6>
+            <h6 class="mb-0 text-truncate" style="max-width: 50%; font-weight: bold;">${p.nome}</h6>
             <div class="ms-auto d-flex">
-              <button class="btn btn-sm btn-outline-secondary ms-1" onclick="abrirObs(${p.linha})">
+              <button class="btn btn-sm btn-outline-secondary ms-1" onclick="abrirObs(${p.linha})" title="Anotar">
                 <i class="fas fa-pencil-alt"></i>
               </button>
-              <button class="btn btn-sm btn-outline-primary ms-1" onclick="abrirEdicao(${p.linha})">
+              
+              <button class="btn btn-sm btn-outline-primary ms-1" onclick="abrirEdicao(${p.linha})" title="Editar">
                 <i class="fas fa-edit"></i>
               </button>
+
               ${btnWhats}
             </div>
           </div>
           
           <div class="text-muted" style="font-size:0.8rem;">
-            Fam: ${p.familia} | Risco: ${p.risco} <br> 
-            ${p.endereco}, ${p.numero}
+            <strong>Fam:</strong> ${p.familia} | <strong>Risco:</strong> ${p.risco} <br> 
+            <i class="fas fa-map-marker-alt"></i> ${p.endereco}, ${p.numero}
           </div>
           
           <div class="mt-1">${badges}</div>
@@ -741,15 +767,17 @@
                    ${isChecked} 
                    onchange="alterarAcompanhamento(${p.linha}, this.checked)">
             <label class="form-check-label text-success fw-bold" style="font-size: 0.9rem; cursor: pointer;" for="chk-card-${p.linha}">
-              Acompanhado (VD)
+              ACOMPANHADO (VD)
             </label>
           </div>
         </div>
       </div>
     `;
-      });
-      container.innerHTML = htmlFinal;
-    }
+  });
+
+  container.innerHTML = htmlFinal;
+}
+
 
     function renderizarTabela() {
       const tbody = document.getElementById('table-body');
@@ -989,34 +1017,78 @@ function autenticar() {
   const pass = document.getElementById('login-pass').value;
   const msgErro = document.getElementById('login-erro');
 
-  // Chamada para a API do Google para verificar na aba Config
   fetch(`${API_URL}?action=login&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`, { redirect: 'follow' })
     .then(r => r.json())
     .then(res => {
       if (res.autorizado) {
-        // Esconde a tela de login
-        document.getElementById('tela-login').style.display = 'none';
-        // Agora sim, carrega os dados dos pacientes
-        carregarDados();
-        // Opcional: Salvar no localStorage para não pedir login toda hora
+        // Salva o status e o nome do usuário
         localStorage.setItem('logado_usf', 'true');
+        localStorage.setItem('nome_usuario', user);
+        
+        // Configura a interface
+        configurarInterfaceLogado(user);
+        
+        document.getElementById('tela-login').style.display = 'none';
+        carregarDados();
       } else {
         msgErro.style.display = 'block';
       }
-    })
-    .catch(err => {
-      console.error("Erro na autenticação:", err);
-      alert("Erro ao conectar com o servidor.");
     });
+}
+
+// Função auxiliar para mostrar o nome e o botão sair
+function configurarInterfaceLogado(nome) {
+  const area = document.getElementById('user-info-area');
+  const spanNome = document.getElementById('user-logged-name');
+  
+  if (nome) {
+    spanNome.innerText = nome.split(' ')[0]; // Mostra apenas o primeiro nome
+    area.style.setProperty('display', 'flex', 'important');
+  }
+}
+
+function logout() {
+  if (confirm("Deseja realmente sair do sistema?")) {
+    localStorage.removeItem('logado_usf');
+    localStorage.removeItem('nome_usuario');
+    location.reload(); // Recarrega a página para voltar à tela de login
+  }
 }
 
 // Lógica para verificar se já estava logado ao abrir o app
 window.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('logado_usf') === 'true') {
+  const estaLogado = localStorage.getItem('logado_usf');
+  const nomeSalvo = localStorage.getItem('nome_usuario');
+
+  if (estaLogado === 'true') {
     document.getElementById('tela-login').style.display = 'none';
+    configurarInterfaceLogado(nomeSalvo);
     carregarDados();
   }
 });
+
+let linhaSendoEditadaCor = null;
+
+// 1. Abre o seletor de cor do Windows/Android
+function abrirSeletorCor(linha) {
+  linhaSendoEditadaCor = linha;
+  document.getElementById('seletor-cor-card').click();
+}
+
+// 2. Aplica a cor escolhida no card e salva na memória (opcional)
+function aplicarNovaCor(cor) {
+  if (linhaSendoEditadaCor) {
+    const card = document.getElementById(`card-paciente-${linhaSendoEditadaCor}`);
+    if (card) {
+      // Muda a cor da borda esquerda
+      card.style.setProperty('border-left-color', cor, 'important');
+      
+      // Opcional: Se quiser que a cor mude de vez na planilha, 
+      // você teria que criar uma coluna na planilha para "Cor" e salvar via fetch.
+      console.log(`Nova cor para a linha ${linhaSendoEditadaCor}: ${cor}`);
+    }
+  }
+}
 
   </script>
 <button onclick="abrirModalCadastro()" style="position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; border-radius: 50%; background-color: #0056b3; color: white; border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 1000; font-size: 24px;">
