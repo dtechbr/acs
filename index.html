@@ -245,6 +245,56 @@
     </div>
   </div>
 
+<div class="modal fade" id="modalCadastro" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title"><i class="fas fa-user-plus"></i> Novo Cadastro</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <form id="formCadastro">
+          <div class="row g-2">
+            <div class="col-12"><label class="small fw-bold">NOME</label><input type="text" name="nome" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">CÓDIGO MV</label><input type="text" name="mv" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">RISCO FAMILIAR</label><select name="risco" class="form-select form-select-sm"><option>RISCO 1</option><option>RISCO 2</option><option>RISCO 3</option></select></div>
+            <div class="col-6"><label class="small fw-bold">FAMÍLIA</label><input type="text" name="familia" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">VD Realizada</label><select name="vd_realizada" class="form-select form-select-sm"><option value="false">NÃO</option><option value="true">SIM</option></select></div>
+            <div class="col-6"><label class="small fw-bold">TIPO</label><select name="tipo" class="form-select form-select-sm"><option>CASA</option><option>CASA VAZIA</option><option>RECUSA</option></select></div>
+            <div class="col-9"><label class="small fw-bold">ENDEREÇO</label><input type="text" name="endereco" class="form-control form-control-sm"></div>
+            <div class="col-3"><label class="small fw-bold">Nº</label><input type="text" name="numero" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">TELEFONE</label><input type="text" name="telefone" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">CNS</label><input type="text" name="cns" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">DN (Data Nasc)</label><input type="date" name="dn" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">SEXO</label><select name="sexo" class="form-select form-select-sm"><option>FEMININO</option><option>MASCULINO</option></select></div>
+            <div class="col-6"><label class="small fw-bold">NIS</label><input type="text" name="nis" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">Acompanhado</label><select name="acompanhado" class="form-select form-select-sm"><option value="false">NÃO</option><option value="true">SIM</option></select></div>
+            
+            <div class="col-12 hr"><hr><strong>Condições / Programas</strong></div>
+            <div class="col-4"><div class="form-check"><input type="checkbox" name="has" class="form-check-input"><label class="small">HAS</label></div></div>
+            <div class="col-4"><div class="form-check"><input type="checkbox" name="dia1" class="form-check-input"><label class="small">DIA I</label></div></div>
+            <div class="col-4"><div class="form-check"><input type="checkbox" name="dia2" class="form-check-input"><label class="small">DIA II</label></div></div>
+            <div class="col-6"><div class="form-check"><input type="checkbox" name="insulino" class="form-check-input"><label class="small">INSULINO-DEP.</label></div></div>
+            <div class="col-6"><div class="form-check"><input type="checkbox" name="gestante" class="form-check-input"><label class="small">GESTANTE</label></div></div>
+            <div class="col-4"><div class="form-check"><input type="checkbox" name="acamado" class="form-check-input"><label class="small">ACAMADO</label></div></div>
+            <div class="col-4"><div class="form-check"><input type="checkbox" name="domiciliado" class="form-check-input"><label class="small">DOMICILIADO</label></div></div>
+            <div class="col-4"><div class="form-check"><input type="checkbox" name="bf" class="form-check-input"><label class="small">BF</label></div></div>
+            
+            <div class="col-6"><label class="small fw-bold">1ª VIGENCIA</label><input type="date" name="vigencia1" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small fw-bold">2ª VIGENCIA</label><input type="date" name="vigencia2" class="form-control form-control-sm"></div>
+            <div class="col-12"><label class="small fw-bold">OBSERVAÇÕES</label><textarea name="obs" class="form-control form-control-sm" rows="2"></textarea></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn btn-success" onclick="salvarNovoPaciente()">Cadastrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
   <div class="modal fade" id="modalObs" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -880,7 +930,46 @@
         });
     }
 
+
+    let modalCadastro;
+window.addEventListener('DOMContentLoaded', () => {
+  modalCadastro = new bootstrap.Modal(document.getElementById('modalCadastro'));
+});
+
+function abrirModalCadastro() {
+  document.getElementById('formCadastro').reset();
+  modalCadastro.show();
+}
+
+function salvarNovoPaciente() {
+  const form = document.getElementById('formCadastro');
+  const formData = new FormData(form);
+  const dados = { action: 'cadastrar_paciente' };
+  
+  formData.forEach((value, key) => { dados[key] = value; });
+  
+  // Captura checkboxes manualmente pois FormData não pega 'false' se desmarcado
+  const checks = ['has','dia1','dia2','insulino','gestante','acamado','domiciliado','bf'];
+  checks.forEach(c => { dados[c] = form.elements[c].checked; });
+
+  const params = new URLSearchParams(dados).toString();
+  
+  fetch(`${API_URL}?${params}`, { redirect: 'follow' })
+    .then(r => r.json())
+    .then(res => {
+      if(res.status === 'sucesso') {
+        alert("Paciente cadastrado com sucesso!");
+        modalCadastro.hide();
+        carregarDados();
+      }
+    });
+}
+
   </script>
+<button onclick="abrirModalCadastro()" style="position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; border-radius: 50%; background-color: #0056b3; color: white; border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 1000; font-size: 24px;">
+  <i class="fas fa-plus"></i>
+</button>
+
 </body>
 
 </html>
