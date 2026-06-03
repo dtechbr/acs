@@ -1,23 +1,20 @@
 {
-  "id": "usf-gestao-v1",
-  "name": "USF Vila Dutra - Gestão",
-  "short_name": "USF Gestão",
-  "description": "Sistema de Gestão de Microárea ACS",
-  "start_url": "./index.html",
+  "name": "USF Gestão de Território",
+  "short_name": "USF",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#0056b3",
+  "background_color": "#f4f6f9",
   "theme_color": "#0056b3",
   "icons": [
     {
-      "src": "android-chrome-192x192.png",
+      "src": "icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "android-chrome-512x512.png",
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ]
 }
